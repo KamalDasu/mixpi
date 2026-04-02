@@ -1,0 +1,33 @@
+[Unit]
+Description=MixPi Multi-Track Recorder
+# Wait for network AND audio subsystem before starting
+After=network-online.target sound.target avahi-daemon.service
+Wants=network-online.target avahi-daemon.service
+
+[Service]
+Type=simple
+User=pi
+Group=audio
+WorkingDirectory=/opt/mixpi
+Environment="PATH=/opt/mixpi/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/mixpi/venv/bin/python -m web.app
+# Auto-restart on crash — critical for unattended headless operation
+Restart=always
+RestartSec=10
+# Give audio device time to enumerate after USB connect
+TimeoutStartSec=30
+
+# Logging — view with: journalctl -u mixpi-recorder -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mixpi
+
+
+# Resource limits
+LimitNOFILE=65536
+# Realtime scheduling for audio callback thread
+LimitRTPRIO=99
+
+[Install]
+WantedBy=multi-user.target

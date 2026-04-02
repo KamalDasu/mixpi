@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MixPi Logo Preview</title>
+<style>
+  body { background: #111; display: flex; flex-direction: column; align-items: center;
+         justify-content: center; min-height: 100vh; margin: 0;
+         font-family: -apple-system, sans-serif; gap: 48px; }
+  .row   { display: flex; align-items: center; gap: 48px; }
+  .card  { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  label  { color: #555; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .wordmark { display: flex; align-items: center; gap: 16px; }
+  .wordmark span { color: #fff; font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wordmark span em { color: #e02020; font-style: normal; }
+</style>
+</head>
+<body>
+
+<!--
+  Curved "KAMAL DASU" sits on the inside of the bottom arc of the button.
+  Path: full circle r=76, starting at left (9 o'clock), clockwise.
+  First semicircle sweeps through the BOTTOM — startOffset="25%" centres
+  the text exactly at 6 o'clock, reading naturally left-to-right.
+-->
+
+<!-- Shared gradient defs (cross-document reference works in all modern browsers) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <radialGradient id="btnGrad" cx="38%" cy="32%" r="68%">
+      <stop offset="0%"   stop-color="#ff5c5c"/>
+      <stop offset="50%"  stop-color="#dc1e1e"/>
+      <stop offset="100%" stop-color="#7d0000"/>
+    </radialGradient>
+    <radialGradient id="rimGrad" cx="42%" cy="36%" r="64%">
+      <stop offset="0%"   stop-color="#4a4a4a"/>
+      <stop offset="100%" stop-color="#0e0e0e"/>
+    </radialGradient>
+    <linearGradient id="playGrad" x1="20%" y1="5%" x2="80%" y2="95%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="55%"  stop-color="#e8e8e8"/>
+      <stop offset="100%" stop-color="#aaaaaa"/>
+    </linearGradient>
+    <radialGradient id="surfaceGlow" cx="50%" cy="42%" r="55%">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.14)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+  </defs>
+</svg>
+
+<!-- ─── Macro: full logo at any pixel size ───────────────────────────────── -->
+<!-- Each SVG carries its own <defs> so the textPath arc is self-contained   -->
+
+<!-- 256 px ----------------------------------------------------------------- -->
+<div class="row">
+  <div class="card">
+    <label>256 px</label>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="256" height="256">
+      <defs>
+        <!-- Full circle r=76 starting at left, clockwise; bottom = 25% offset -->
+        <path id="arc256" d="M 24,100 A 76,76 0 0 1 176,100 A 76,76 0 0 1 24,100"/>
+      </defs>
+      <circle cx="100" cy="100" r="99" fill="url(#rimGrad)"/>
+      <path d="M 24,75 A 80,80 0 0 1 125,20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="87" fill="url(#btnGrad)"/>
+      <circle cx="100" cy="100" r="87" fill="url(#surfaceGlow)"/>
+      <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+      <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.32)" transform="translate(3.5,5)"/>
+      <polygon points="66,60 66,140 148,100" fill="url(#playGrad)"/>
+      <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+      <polygon points="66,100 66,140 107,120" fill="rgba(0,0,0,0.10)"/>
+      <path d="M 28,140 A 82,82 0 0 0 172,140" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>
+      <text font-family="-apple-system,Helvetica,sans-serif" font-size="9.5"
+            font-weight="400" letter-spacing="0.18em"             fill="rgba(120,220,100,0.70)">
+        <textPath href="#arc256" startOffset="25%" text-anchor="middle">KAMAL DASU</textPath>
+      </text>
+    </svg>
+  </div>
+
+  <!-- 128 px --------------------------------------------------------------- -->
+  <div class="card">
+    <label>128 px</label>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="128" height="128">
+      <defs>
+        <path id="arc128" d="M 24,100 A 76,76 0 0 1 176,100 A 76,76 0 0 1 24,100"/>
+      </defs>
+      <circle cx="100" cy="100" r="99" fill="url(#rimGrad)"/>
+      <path d="M 24,75 A 80,80 0 0 1 125,20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="87" fill="url(#btnGrad)"/>
+      <circle cx="100" cy="100" r="87" fill="url(#surfaceGlow)"/>
+      <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+      <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.32)" transform="translate(3.5,5)"/>
+      <polygon points="66,60 66,140 148,100" fill="url(#playGrad)"/>
+      <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+      <polygon points="66,100 66,140 107,120" fill="rgba(0,0,0,0.10)"/>
+      <path d="M 28,140 A 82,82 0 0 0 172,140" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>
+      <text font-family="-apple-system,Helvetica,sans-serif" font-size="9.5"
+            font-weight="400" letter-spacing="0.18em"             fill="rgba(120,220,100,0.70)">
+        <textPath href="#arc128" startOffset="25%" text-anchor="middle">KAMAL DASU</textPath>
+      </text>
+    </svg>
+  </div>
+
+  <!-- 48 px (small icon — watermark intentionally omitted at this scale) --- -->
+  <div class="card">
+    <label>48 px (icon)</label>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="48" height="48">
+      <circle cx="100" cy="100" r="99" fill="url(#rimGrad)"/>
+      <circle cx="100" cy="100" r="87" fill="url(#btnGrad)"/>
+      <circle cx="100" cy="100" r="87" fill="url(#surfaceGlow)"/>
+      <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+      <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.32)" transform="translate(3.5,5)"/>
+      <polygon points="66,60 66,140 148,100" fill="url(#playGrad)"/>
+      <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ─── Wordmark ──────────────────────────────────────────────────────────── -->
+<div class="row">
+  <div class="card">
+    <label>Wordmark</label>
+    <div class="wordmark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="56" height="56">
+        <defs>
+          <path id="arcWm" d="M 24,100 A 76,76 0 0 1 176,100 A 76,76 0 0 1 24,100"/>
+        </defs>
+        <circle cx="100" cy="100" r="99" fill="url(#rimGrad)"/>
+        <circle cx="100" cy="100" r="87" fill="url(#btnGrad)"/>
+        <circle cx="100" cy="100" r="87" fill="url(#surfaceGlow)"/>
+        <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+        <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.30)" transform="translate(3,4)"/>
+        <polygon points="66,60 66,140 148,100" fill="url(#playGrad)"/>
+        <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+        <text font-family="-apple-system,Helvetica,sans-serif" font-size="9.5"
+              font-weight="400" letter-spacing="0.18em"             fill="rgba(120,220,100,0.70)">
+          <textPath href="#arcWm" startOffset="25%" text-anchor="middle">KAMAL DASU</textPath>
+        </text>
+      </svg>
+      <span><em>Mix</em>Pi</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

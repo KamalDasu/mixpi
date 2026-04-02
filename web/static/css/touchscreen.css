@@ -1,0 +1,223 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   MusicPi — Touchscreen overrides
+   Target: Waveshare 4.3" DSI 800×480 capacitive, landscape orientation
+   Also applies to any coarse-pointer (finger) device.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Global: eliminate 300ms tap delay on all interactive elements ───────── */
+a, button, input, select, textarea, label,
+.panel-tab, .ch-strip, .ch-arm-btn,
+.preset-card, .route-select, .route-apply-btn {
+    touch-action: manipulation;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Coarse pointer (finger / capacitive touchscreen)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+
+    /* ── Press feedback — replaces hover on touch devices ───────────────── */
+    button:active,
+    .btn:active,
+    .panel-tab:active,
+    .ch-arm-btn:active,
+    .preset-card:active,
+    .route-apply-btn:active {
+        transform: scale(0.94);
+        opacity: 0.75;
+        transition: transform 0.06s, opacity 0.06s;
+    }
+
+    /* Suppress hover effects that don't work on touch */
+    .ch-strip:hover        { background: transparent; }
+    .ch-strip--disarmed:hover { opacity: 0.4; }
+    .preset-card:hover     { transform: none; }
+    .btn-small:hover       { background: transparent; }
+
+    /* ── Transport buttons ───────────────────────────────────────────────── */
+    .tpt-rec,
+    .tpt-stop,
+    .tpt-mark {
+        min-height: 56px;
+        min-width:  90px;
+        font-size:  0.85rem;
+        padding:    0 18px;
+    }
+
+    /* ── Panel tabs ──────────────────────────────────────────────────────── */
+    .panel-tab {
+        min-height: 44px;
+        padding:    0 16px;
+        font-size:  0.75rem;
+    }
+
+    /* ── General small buttons ───────────────────────────────────────────── */
+    .btn-small {
+        min-height: 40px;
+        padding:    0 14px;
+        font-size:  0.78rem;
+    }
+
+    /* ── ARM button on channel strips ────────────────────────────────────── */
+    .ch-arm-btn {
+        min-height: 44px;
+        min-width:  44px;
+        font-size:  0.72rem;
+        padding:    6px 4px;
+    }
+
+    /* ── Preset quality cards ────────────────────────────────────────────── */
+    .preset-card {
+        min-height: 80px;
+        padding:    12px 10px;
+    }
+
+    /* ── Session / routing download buttons ─────────────────────────────── */
+    .btn-download,
+    .btn-delete,
+    .btn-play-file,
+    .btn-download-file,
+    .route-apply-btn {
+        min-height: 44px;
+        padding:    0 14px;
+        font-size:  0.78rem;
+    }
+
+    /* ── Confirmation modal buttons ──────────────────────────────────────── */
+    .modal-cancel,
+    .modal-confirm {
+        min-height: 52px;
+        min-width:  110px;
+        font-size:  0.88rem;
+    }
+
+    /* ── Form inputs ─────────────────────────────────────────────────────── */
+    input[type="text"],
+    input:not([type]),
+    .tpt-input,
+    .route-select {
+        min-height: 44px;
+        font-size:  0.9rem;
+        padding:    0 10px;
+    }
+
+    /* Routing source dropdown needs extra height for thumb */
+    .route-select { min-height: 40px; }
+
+    /* ── Scrollable areas: momentum scroll on iOS/Chrome ─────────────────── */
+    .channel-console,
+    .panel-content,
+    .sessions-list,
+    .routing-grid {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   800×480 layout — Waveshare 4.3" DSI (and any 800px-wide viewport)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 820px) {
+
+    /* Layout heights tuned for 480px total */
+    :root {
+        --header-h:    42px;
+        --transport-h: 60px;   /* two rows on narrow; gives extra tap room */
+    }
+
+    /* ── Transport: allow wrapping so session name goes below buttons ─────── */
+    .console-transport {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--transport-h);
+        padding: 4px 8px;
+        gap: 6px;
+    }
+
+    .tpt-buttons   { flex-shrink: 0; }
+    .tpt-session   { flex: 1 1 200px; min-width: 0; }
+    .tpt-arm-controls { flex-shrink: 0; }
+
+    .tpt-input { width: 100%; min-width: 0; }
+
+    /* ── Channel console: reduced strip width for more visible strips ──────── */
+    .ch-strip { width: 54px; }
+
+    /* Slightly tighter meter */
+    .ch-meter-bar { width: 10px; }
+
+    /* ── Bottom panel: give it more room ─────────────────────────────────── */
+    .console-panel { flex: 1 1 0; min-height: 0; }
+
+    /* ── Panel tabs: more compact on narrow screen ───────────────────────── */
+    .panel-tab     { padding: 0 10px; font-size: 0.7rem; min-height: 40px; }
+    .panel-version { display: none; }   /* reclaim space */
+
+    /* ── Setup tab: stack all 3 columns vertically on narrow screen ─────── */
+    .setup-grid {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+    }
+    .setup-col { border-right: none; border-bottom: 1px solid var(--border); }
+    .setup-col:last-child { border-bottom: none; }
+
+    /* ── Quality preset grid: 3 columns still fits at 800px ─────────────── */
+    .preset-grid { grid-template-columns: repeat(3, 1fr); }
+
+    /* ── Routing grid: collapse channel badge column ─────────────────────── */
+    .route-row { grid-template-columns: 90px 1fr auto; }
+    .route-col-ch { display: none; }
+
+    /* ── Modal: full width on small screens ──────────────────────────────── */
+    .modal-box { width: 92vw; padding: 24px 18px 18px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Landscape + height ≤ 500px (covers the exact 800×480 Waveshare panel)
+   Fine-tune the channel console height so all four sections fit.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (max-height: 500px) {
+
+    /* Fixed heights that sum to ≤480px:
+       header 42 + transport 54 + console 160 + panel 224 = 480 */
+    :root {
+        --header-h:    42px;
+        --transport-h: 54px;
+    }
+
+    .channel-console {
+        height: 160px;
+        flex-shrink: 0;
+    }
+
+    .ch-meter-bar { height: 90px; }
+
+    .ch-scale { padding: 24px 4px 48px; }
+
+    .console-panel { flex: 1; min-height: 0; overflow: hidden; }
+
+    /* Tighter tab bar */
+    .panel-tab { min-height: 36px; font-size: 0.68rem; padding: 0 8px; }
+
+    /* Slightly smaller transport buttons to fit single row */
+    .tpt-rec, .tpt-stop, .tpt-mark {
+        min-height: 44px;
+        padding: 0 12px;
+        font-size: 0.78rem;
+    }
+
+    .btn-small {
+        min-height: 36px;
+        padding: 0 10px;
+        font-size: 0.72rem;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Scrollbar styling for touchscreens (thin, unobtrusive)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+    ::-webkit-scrollbar       { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+}

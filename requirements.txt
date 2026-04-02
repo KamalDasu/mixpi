@@ -1,0 +1,11 @@
+flask==3.0.2
+flask-socketio==5.3.6
+flask-cors==4.0.0
+python-socketio==5.11.1
+sounddevice==0.4.6
+soundfile==0.12.1
+numpy==1.26.4
+pyyaml==6.0.1
+xair-api==2.4.3
+watchdog==4.0.0
+psutil==5.9.8

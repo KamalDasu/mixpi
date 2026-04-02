@@ -1,0 +1,156 @@
+Captured at: Wed Mar 25 05:43:57 PM EDT 2026
+
+==========================================
+Server Status
+==========================================
+{
+    "disk_space": {
+        "free": 76156059648,
+        "percent_used": 22.849634495927795,
+        "total": 104510152704,
+        "used": 23880187904
+    },
+    "recording": {
+        "channels": 18,
+        "duration": 0,
+        "frames": 0,
+        "is_monitoring": true,
+        "is_recording": false,
+        "markers": 0,
+        "sample_rate": 48000,
+        "waiting_for_signal": false
+    },
+    "success": true
+}
+
+==========================================
+Configuration
+==========================================
+{
+    "config": {
+        "audio": {
+            "bit_depth": 24,
+            "buffer_size": 512,
+            "channels": 18,
+            "device": "X Air 18",
+            "sample_rate": 48000
+        },
+        "channels": {
+            "names": [
+                "Kick",
+                "Snare",
+                "Hi-Hat",
+                "Tom 1",
+                "Tom 2",
+                "Overhead L",
+                "Overhead R",
+                "Bass DI",
+                "Guitar 1",
+                "Guitar 2",
+                "Keys L",
+                "Keys R",
+                "Vocal 1",
+                "Vocal 2",
+                "Vocal 3",
+                "Aux 1",
+                "Aux 2",
+                "Aux 3"
+            ]
+        },
+        "monitoring": {
+            "peak_hold": 2000,
+            "update_rate": 50
+        },
+        "recording": {
+            "auto_start": {
+                "enabled": true,
+                "silence_timeout": 5,
+                "threshold_dbfs": -40
+            },
+            "file_format": "wav",
+            "pre_roll": 2,
+            "storage_path": "./recordings"
+        }
+    },
+    "success": true
+}
+
+==========================================
+Audio Devices
+==========================================
+{
+    "devices": [
+        {
+            "channels": 2,
+            "index": 0,
+            "name": "HD-Audio Generic: Analog (hw:0,0)",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 128,
+            "index": 1,
+            "name": "sysdefault",
+            "sample_rate": 48000.0
+        },
+        {
+            "channels": 64,
+            "index": 9,
+            "name": "pipewire",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 32,
+            "index": 10,
+            "name": "pulse",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 1,
+            "index": 11,
+            "name": "speex",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 8,
+            "index": 12,
+            "name": "upmix",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 6,
+            "index": 13,
+            "name": "vdownmix",
+            "sample_rate": 44100.0
+        },
+        {
+            "channels": 64,
+            "index": 15,
+            "name": "default",
+            "sample_rate": 44100.0
+        }
+    ],
+    "success": true
+}
+
+==========================================
+Sessions
+==========================================
+{
+    "sessions": [
+        {
+            "files": 18,
+            "metadata": {
+                "artist": "",
+                "engineer": "",
+                "notes": "",
+                "timestamp": "2026-03-25T17:28:12.392105",
+                "venue": ""
+            },
+            "modified": "2026-03-25T17:28:12.394846",
+            "name": "2026-03-25_17-28-12",
+            "path": "recordings/2026-03-25_17-28-12",
+            "size": 3843864
+        }
+    ],
+    "success": true
+}

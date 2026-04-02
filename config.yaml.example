@@ -1,0 +1,57 @@
+audio:
+  device: "auto"        # "auto" detects XR18 by USB name; set exact name if auto fails
+                        # Find exact name with: arecord -l
+  sample_rate: 48000    # 48 kHz — native rate for X Air 18 USB streaming
+  bit_depth: 16         # 16 = PCM_16 (default) | 24 = PCM_24 | 32 = S32_LE (XR18 hardware format)
+  channels: 18          # capped to device max at runtime
+  buffer_size: 1024     # larger buffer = more stable on Pi (512 fine on fast development machines)
+
+recording:
+  storage_path: "/media/pi/MIXPI"  # path on USB drive — use absolute path for systemd service
+                                         # Change to "./recordings" for local development
+  file_format: "wav"
+  auto_start:
+    enabled: false      # true = start recording automatically when signal exceeds threshold
+    threshold_dbfs: -40
+    silence_timeout: 30 # seconds of silence before auto-stop
+  pre_roll: 2           # seconds of audio buffered before REC is pressed
+
+monitoring:
+  update_rate: 50       # level meter push interval (ms) — lower = smoother but more CPU
+  peak_hold: 2000       # peak indicator hold time (ms)
+
+web:
+  host: "0.0.0.0"       # listen on all interfaces — required for network access from other devices
+  port: 5000
+  debug: false          # set true only for local development
+
+osc:
+  xair_ip: ""               # leave empty for auto-discovery via UDP broadcast (recommended)
+                            # or set a fixed IP if your mixer always gets the same address
+  xair_port: 10024          # XR18 OSC receive port (default 10024 — do not change)
+  server_port: 10025        # MixPi OSC receive port
+  enabled: true
+
+channels:
+  count: 18             # fallback channel count shown before USB device is detected
+  # Channel names are synced live from the XR18 via OSC.
+  # You can override them here; they are only used when OSC is disabled or the mixer is offline.
+  names:
+    - "Kick"
+    - "Snare"
+    - "Hi-Hat"
+    - "Tom 1"
+    - "Tom 2"
+    - "Overhead L"
+    - "Overhead R"
+    - "Bass DI"
+    - "Guitar 1"
+    - "Guitar 2"
+    - "Keys L"
+    - "Keys R"
+    - "Vocal 1"
+    - "Vocal 2"
+    - "Vocal 3"
+    - "Ch 16"      # 16th mono input — rename to match your setup
+    - "Main L"     # Ch 17 = stereo main mix L (routed back over USB)
+    - "Main R"     # Ch 18 = stereo main mix R (routed back over USB)

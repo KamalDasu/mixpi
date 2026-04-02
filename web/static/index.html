@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MixPi Recorder</title>
+    <link rel="stylesheet" href="css/style.css?v=20260325">
+    <link rel="stylesheet" href="css/touchscreen.css">
+</head>
+<body>
+<div class="console-app">
+
+    <!-- ── HTTPS setup banner (removed) ────────── -->
+
+    <!-- ── Header bar ───────────────────────────────────────────────────── -->
+    <header class="console-header">
+        <div class="hdr-brand">
+            <svg class="hdr-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="h-red" cx="38%" cy="32%" r="68%">
+                        <stop offset="0%"   stop-color="#ff5c5c"/>
+                        <stop offset="50%"  stop-color="#dc1e1e"/>
+                        <stop offset="100%" stop-color="#7d0000"/>
+                    </radialGradient>
+                    <radialGradient id="h-rim" cx="42%" cy="36%" r="64%">
+                        <stop offset="0%"   stop-color="#4a4a4a"/>
+                        <stop offset="100%" stop-color="#0e0e0e"/>
+                    </radialGradient>
+                    <linearGradient id="h-play" x1="20%" y1="5%" x2="80%" y2="95%">
+                        <stop offset="0%"   stop-color="#fff"/>
+                        <stop offset="55%"  stop-color="#e8e8e8"/>
+                        <stop offset="100%" stop-color="#aaa"/>
+                    </linearGradient>
+                    <radialGradient id="h-glow" cx="50%" cy="42%" r="55%">
+                        <stop offset="0%"   stop-color="rgba(255,255,255,0.14)"/>
+                        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                    </radialGradient>
+                </defs>
+                <circle cx="100" cy="100" r="99" fill="url(#h-rim)"/>
+                <circle cx="100" cy="100" r="87" fill="url(#h-red)"/>
+                <circle cx="100" cy="100" r="87" fill="url(#h-glow)"/>
+                <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+                <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.30)" transform="translate(3,4)"/>
+                <polygon points="66,60 66,140 148,100" fill="url(#h-play)"/>
+                <polygon points="66,60 66,100 107,80" fill="rgba(255,255,255,0.42)"/>
+            </svg>
+            <span class="hdr-title">MixPi</span>
+        </div>
+
+        <div class="hdr-center"></div>
+
+        <div class="hdr-right">
+            <span id="hdr-pi-name" class="hdr-pi-name"></span>
+            <span id="disk-space" class="hdr-disk">--</span>
+            <span class="hdr-sep">·</span>
+            <span id="connection-status" class="hdr-dot">●</span>
+            <span id="connection-text" class="hdr-conn">Connecting…</span>
+            <button id="btn-view-toggle" class="hdr-view-btn" title="Switch to mobile view">Mobile</button>
+        </div>
+    </header>
+
+    <!-- ── Tab bar (top in mobile, bottom in desktop via CSS order) ──────── -->
+    <div class="panel-tabs" role="tablist">
+        <button class="panel-tab" data-tab="home"    role="tab">Home</button>
+        <button class="panel-tab" data-tab="files"   role="tab">Recordings</button>
+        <button class="panel-tab" data-tab="markers" role="tab">Markers</button>
+        <button class="panel-tab" data-tab="routing" role="tab">Routing</button>
+        <button class="panel-tab" data-tab="storage" role="tab">System</button>
+        <div class="panel-tabs-spacer"></div>
+        <span class="panel-version">MixPi v1.0</span>
+    </div>
+
+    <!-- ── Discovery / connection status bar ───────────────────────────── -->
+    <div class="discovery-bar" id="discovery-bar">
+
+        <!-- Raspberry Pi -->
+        <div class="disc-item" id="disc-pi">
+            <span class="disc-dot disc-dot--ok"></span>
+            <span class="disc-label">PI</span>
+            <span class="disc-val" id="disc-pi-val">--</span>
+        </div>
+
+        <div class="disc-sep"></div>
+
+        <!-- Mixer discovered via OSC/network -->
+        <div class="disc-item" id="disc-xair">
+            <span class="disc-dot disc-dot--search" id="disc-xair-dot"></span>
+            <!-- RJ45 ethernet connector icon — visible in mobile only -->
+            <svg class="disc-icon-eth" viewBox="0 0 18 16" width="15" height="13"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <!-- Connector body -->
+                <rect x="1.5" y="0.8" width="15" height="10" rx="1.5"
+                      fill="none" stroke="currentColor" stroke-width="1.4"/>
+                <!-- 4 contact pins -->
+                <line x1="5"  y1="3.5" x2="5"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                <line x1="8"  y1="3.5" x2="8"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                <line x1="11" y1="3.5" x2="11" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                <line x1="14" y1="3.5" x2="14" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                <!-- Locking tab -->
+                <rect x="6.5" y="10.6" width="5" height="2" rx="0.5" fill="currentColor"/>
+                <!-- Cable tail -->
+                <line x1="9" y1="12.6" x2="9" y2="15.5" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <span class="disc-device-icon" id="disc-xair-icon" title=""></span>
+            <span class="disc-label">MIXER</span>
+            <span class="disc-val" id="disc-xair-val">Searching…</span>
+        </div>
+
+        <div class="disc-sep"></div>
+
+        <!-- OSC connection (network control) -->
+        <div class="disc-item">
+            <span class="disc-dot" id="disc-osc-dot"></span>
+            <span class="disc-label">OSC</span>
+            <span class="disc-val" id="disc-osc-val">--</span>
+        </div>
+
+        <div class="disc-sep"></div>
+
+        <!-- USB audio cable -->
+        <div class="disc-item">
+            <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
+            <!-- USB trident icon — visible in mobile only -->
+            <svg class="disc-icon-usb" viewBox="0 0 14 18" width="10" height="14"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <!-- Connector at bottom -->
+                <rect x="4" y="15" width="6" height="2.6" rx="0.7"
+                      fill="none" stroke="currentColor" stroke-width="1"/>
+                <!-- Stem -->
+                <line x1="7" y1="15" x2="7" y2="11" stroke="currentColor" stroke-width="1.2"/>
+                <!-- Horizontal bus -->
+                <line x1="2" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.2"/>
+                <!-- Left branch → square -->
+                <line x1="2" y1="11" x2="2" y2="8" stroke="currentColor" stroke-width="1"/>
+                <rect x="0.5" y="5.5" width="3" height="2.8" rx="0.4"
+                      fill="none" stroke="currentColor" stroke-width="1"/>
+                <!-- Right branch → circle -->
+                <line x1="12" y1="11" x2="12" y2="8" stroke="currentColor" stroke-width="1"/>
+                <circle cx="12" cy="6.2" r="1.9"
+                        fill="none" stroke="currentColor" stroke-width="1"/>
+                <!-- Centre branch → triangle -->
+                <line x1="7" y1="11" x2="7" y2="7" stroke="currentColor" stroke-width="1"/>
+                <polygon points="7,2.5 5,7 9,7" fill="currentColor"/>
+            </svg>
+            <span class="disc-label">USB</span>
+            <span class="disc-val" id="disc-usb-val">Checking…</span>
+        </div>
+
+        <!-- Actions (pushed right) -->
+        <div class="disc-actions">
+            <button class="disc-scan-btn" id="btn-disc-scan" title="Scan for mixer on network">⟳ Scan</button>
+            <button class="disc-scan-btn disc-restart-btn" id="btn-restart-service" title="Restart the MixPi recording service (use if no audio input is seen)">⏻ Restart</button>
+        </div>
+    </div><!-- /discovery-bar -->
+
+    <!-- ── Home tab content — starts active; JS manages tab switching ────── -->
+    <div id="tab-home" class="active">
+
+    <!-- ── Pre-record config row ────────────────────────────────────────── -->
+    <div class="prerecord-row">
+
+        <!-- Col 1: Quality dropdown -->
+        <div class="prerecord-col prerecord-col--select">
+            <span class="prerecord-label">REC QUALITY</span>
+            <select id="select-quality" class="prerecord-select">
+                <option value="">Loading…</option>
+            </select>
+        </div>
+
+        <div class="prerecord-div"></div>
+
+        <!-- Col 2: Channel preset dropdown -->
+        <div class="prerecord-col prerecord-col--select">
+            <span class="prerecord-label">CHANNELS</span>
+            <select id="select-ch-preset" class="prerecord-select">
+                <option value="all">All 18 CH</option>
+                <option value="2ch">2 CH — Ch 1-2 (Stereo)</option>
+                <option value="16ch">16 CH — Ch 1-16</option>
+                <option value="mainlr">Main LR — Ch 17-18</option>
+                <option value="custom">Custom (use REC buttons)</option>
+            </select>
+        </div>
+
+        <!-- Col 3: Storage destination -->
+        <div class="prerecord-col prerecord-col--select">
+            <div class="prerecord-label-row">
+                <span class="prerecord-label">STORAGE</span>
+                <button id="btn-refresh-storage" class="prerecord-refresh-btn" title="Rescan storage devices">↺</button>
+            </div>
+            <select id="select-storage" class="prerecord-select">
+                <option value="">Detecting…</option>
+            </select>
+        </div>
+
+        <div class="prerecord-div"></div>
+
+        <!-- Col 2: Session name + Notes + Track/Song + Apply -->
+        <div class="prerecord-col prerecord-col--session">
+            <div class="prerecord-field">
+                <span class="prerecord-label">SESSION</span>
+                <input id="input-session-name" class="prerecord-input"
+                       placeholder="session1" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="prerecord-field">
+                <span class="prerecord-label">NOTES</span>
+                <input id="input-notes" class="prerecord-input prerecord-input--dim"
+                       placeholder="Notes…" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="prerecord-field">
+                <span class="prerecord-label">SONG</span>
+                <input id="input-track-name" class="prerecord-input prerecord-input--track"
+                       placeholder="song1" autocomplete="off" spellcheck="false"
+                       title="Song / take name — used as the recording folder prefix. Leave blank for auto-numbering.">
+            </div>
+            <!-- Apply sits at the bottom of this column, level with Storage on the left -->
+            <button id="btn-apply-config" class="prerecord-apply" title="Apply recording quality, channel &amp; storage selection">Apply</button>
+        </div>
+
+    </div>
+
+    <!-- ── Transport bar ────────────────────────────────────────────────── -->
+    <nav class="console-transport">
+        <!-- Transport buttons + timer in one row -->
+        <div class="tpt-buttons">
+            <div class="tpt-btn-group">
+                <button id="btn-record" class="btn tpt-btn tpt-rec" disabled aria-label="Record">
+                    <svg class="rec-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <radialGradient id="r-red" cx="38%" cy="32%" r="68%">
+                                <stop offset="0%"   stop-color="#ff5c5c"/>
+                                <stop offset="50%"  stop-color="#dc1e1e"/>
+                                <stop offset="100%" stop-color="#7d0000"/>
+                            </radialGradient>
+                            <radialGradient id="r-rim" cx="42%" cy="36%" r="64%">
+                                <stop offset="0%"   stop-color="#4a4a4a"/>
+                                <stop offset="100%" stop-color="#0e0e0e"/>
+                            </radialGradient>
+                            <linearGradient id="r-play" x1="20%" y1="5%" x2="80%" y2="95%">
+                                <stop offset="0%"   stop-color="#fff"/>
+                                <stop offset="55%"  stop-color="#e8e8e8"/>
+                                <stop offset="100%" stop-color="#aaa"/>
+                            </linearGradient>
+                            <radialGradient id="r-glow" cx="50%" cy="42%" r="55%">
+                                <stop offset="0%"   stop-color="rgba(255,255,255,0.14)"/>
+                                <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                            </radialGradient>
+                            <path id="r-arc" d="M 24,100 A 76,76 0 0 1 176,100 A 76,76 0 0 1 24,100"/>
+                        </defs>
+                        <circle cx="100" cy="100" r="99" fill="url(#r-rim)"/>
+                        <path d="M 24,75 A 80,80 0 0 1 125,20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="100" cy="100" r="87" fill="url(#r-red)"/>
+                        <circle cx="100" cy="100" r="87" fill="url(#r-glow)"/>
+                        <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+                        <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.30)" transform="translate(3,4)"/>
+                        <polygon points="66,60 66,140 148,100" fill="url(#r-play)"/>
+                        <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+                        <polygon points="66,100 66,140 107,120" fill="rgba(0,0,0,0.10)"/>
+                        <!-- Red REC label inside the play triangle -->
+                        <text x="103" y="103" text-anchor="middle" dominant-baseline="middle"
+                              font-family="-apple-system,Helvetica,sans-serif"
+                              font-size="22" font-weight="900" letter-spacing="0.08em"
+                              fill="#aa0000">REC</text>
+                        <!-- Kamal Dasu watermark along bottom arc -->
+                        <text font-family="-apple-system,Helvetica,sans-serif" font-size="9.5"
+                              font-weight="400" letter-spacing="0.18em" fill="rgba(120,220,100,0.70)">
+                            <textPath href="#r-arc" startOffset="25%" text-anchor="middle">KAMAL DASU</textPath>
+                        </text>
+                    </svg>
+                </button>
+                <button id="btn-stop" class="btn tpt-btn tpt-stop" disabled>
+                    <span class="tpt-sq"></span> STOP
+                </button>
+                <button id="btn-marker" class="btn tpt-btn tpt-mark" disabled>
+                    ◈ MARK
+                </button>
+            </div>
+            <!-- Timer + status to the right of MARK -->
+            <div class="tpt-timer-row">
+                <span id="recording-time" class="tpt-timer">00:00:00</span>
+                <span id="recording-status" class="tpt-status-pill">Ready</span>
+            </div>
+        </div>
+
+    </nav>
+
+    <!-- ── Waveform panel ───────────────────────────────────────────────── -->
+    <div class="timeline-panel" id="timeline-panel">
+        <canvas id="tpt-timeline" class="tpt-timeline" height="34"></canvas>
+    </div>
+
+    <!-- ── Channel strip header ─────────────────────────────────────────── -->
+    <div class="ch-strip-header">
+        <!-- USB trident icon -->
+        <svg class="ch-strip-header__usb-icon" viewBox="0 0 22 22" width="18" height="18"
+             xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- Connector at bottom -->
+            <rect x="7.5" y="18.5" width="7" height="2.8" rx="0.8"
+                  fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <!-- Stem -->
+            <line x1="11" y1="18.5" x2="11" y2="13.5"
+                  stroke="currentColor" stroke-width="1.3"/>
+            <!-- Horizontal bus -->
+            <line x1="3" y1="13.5" x2="19" y2="13.5"
+                  stroke="currentColor" stroke-width="1.3"/>
+            <!-- Left branch → square -->
+            <line x1="3" y1="13.5" x2="3" y2="9.5"
+                  stroke="currentColor" stroke-width="1.1"/>
+            <rect x="1" y="6.8" width="4" height="3.8" rx="0.5"
+                  fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <!-- Right branch → circle -->
+            <line x1="19" y1="13.5" x2="19" y2="9.5"
+                  stroke="currentColor" stroke-width="1.1"/>
+            <circle cx="19" cy="7.5" r="2.3"
+                    fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <!-- Centre branch → triangle -->
+            <line x1="11" y1="13.5" x2="11" y2="8.5"
+                  stroke="currentColor" stroke-width="1.1"/>
+            <polygon points="11,3.5 8,8.5 14,8.5" fill="currentColor"/>
+        </svg>
+        <span class="ch-strip-header__label">MIXER</span>
+        <span class="ch-strip-header__sep">—</span>
+        <span class="ch-strip-header__sub">USB SEND OUTPUT</span>
+        <!-- Confirmed session/config — moved here from transport bar -->
+        <div class="tpt-confirmed">
+            <span class="tpt-confirmed-name" id="tpt-confirmed-name" style="display:none"></span>
+            <span class="tpt-confirmed-config" id="tpt-confirmed-config">—</span>
+        </div>
+        <div class="ch-strip-header__actions">
+            <button id="btn-disc-names" class="btn btn-small btn-util" title="Refresh channel labels from mixer">↺ Labels</button>
+            <button id="btn-reset-peaks" class="btn btn-small btn-util" title="Reset peak hold indicators">Peaks ↺</button>
+        </div>
+    </div>
+
+    <!-- ── Channel console ──────────────────────────────────────────────── -->
+    <div class="channel-console">
+        <!-- dB scale ruler on the left -->
+        <div class="ch-scale">
+            <span>0</span>
+            <span>-6</span>
+            <span>-12</span>
+            <span>-18</span>
+            <span>-24</span>
+            <span>-36</span>
+            <span>-∞</span>
+        </div>
+        <!-- All channel strips -->
+        <div id="meters-container" class="ch-strips"></div>
+    </div>
+
+    </div><!-- /tab-home -->
+
+    <!-- ── Bottom panel content (tabbed) ───────────────────────────────── -->
+    <div class="panel-content">
+
+            <!-- FILES TAB ───────────────────────────────────────────────── -->
+            <div id="tab-files" class="tab-pane active">
+                <div class="files-header">
+                    <button id="btn-refresh-sessions" class="btn btn-small">Refresh</button>
+                </div>
+                <div id="sessions-list" class="sessions-list">
+                    <p class="empty-message">Loading…</p>
+                </div>
+            </div>
+
+            <!-- MARKERS TAB ─────────────────────────────────────────────── -->
+            <div id="tab-markers" class="tab-pane">
+                <div id="markers-list" class="markers-list">
+                    <p class="empty-message">No markers yet</p>
+                </div>
+            </div>
+
+            <!-- ROUTING TAB ─────────────────────────────────────────────── -->
+            <div id="tab-routing" class="tab-pane">
+                <div class="routing-tips-row">
+
+                    <div class="routing-tip">
+                        <div class="routing-tip-icon">💡</div>
+                        <div class="routing-tip-body">
+                            <strong>Recommended XR18 setup — all 18 USB channels:</strong>
+                            <p class="routing-tip-desc">To record 16 channels plus a stereo mix on the X-Air (XR18) USB, set <em>Routing &gt; USB Send</em> to <em>"Analog In 1–16"</em> for individual tracks. Then set USB Sends 17/18 to <em>"Main L"</em> and <em>"Main R"</em> to capture the stereo mix — ensuring all 18 USB channels are used for the full session.</p>
+                            <ul class="routing-tip-list">
+                                <li>In X Air Edit → <em>Routing &gt; USB Send</em></li>
+                                <li>USB 1–16 → <em>Analog In 1–16</em> &nbsp;(individual mono tracks)</li>
+                                <li>USB 17 → <em>Main L</em> &nbsp;·&nbsp; USB 18 → <em>Main R</em> &nbsp;(stereo mix reference)</li>
+                            </ul>
+                            <span class="routing-tip-note">This captures all 16 mono inputs + the full stereo mix on a single USB connection.</span>
+                        </div>
+                    </div>
+
+                    <div class="routing-tip routing-tip-fader">
+                        <div class="routing-tip-icon">🎚️</div>
+                        <div class="routing-tip-body">
+                            <strong>Pre-fader vs Post-fader for USB 17–18 (Main L/R):</strong>
+                            <ul class="routing-tip-list">
+                                <li><em>Pre-fader</em> — stereo mix before the master fader; level stays constant even if master is pulled down</li>
+                                <li><em>Post-fader</em> — stereo mix after the master fader; reflects exactly what the audience hears</li>
+                            </ul>
+                            <span class="routing-tip-note">USB 1–16 (Analog In) are always pre-fader — fader moves never affect individual track recordings.</span>
+                        </div>
+                    </div>
+
+                    <div class="routing-tip">
+                        <div class="routing-tip-icon">🔇</div>
+                        <div class="routing-tip-body">
+                            <strong>Muted channels are automatically skipped:</strong>
+                            <ul class="routing-tip-list">
+                                <li>Channels muted on the XR18 show an <em>M</em> badge and are not armed for recording</li>
+                                <li>Un-mute in X Air Edit or on the mixer surface to include them</li>
+                                <li>Re-select your channel preset or press <em>Apply</em> after un-muting</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Hidden elements kept for JS compatibility -->
+                <span id="routing-osc-badge" style="display:none"></span>
+                <div id="routing-grid" style="display:none"></div>
+            </div>
+
+            <!-- SYSTEM TAB (formerly Storage) ────────────────────────────────────────── -->
+            <div id="tab-storage" class="tab-pane">
+                <div class="system-grid">
+                    <!-- Left Col: Storage -->
+                    <div class="system-col">
+                        <h3 class="system-section-title">💾 Storage Management</h3>
+                        <div id="storage-drives-list" class="storage-drives-list">
+                            <p class="empty-message">Scanning drives…</p>
+                        </div>
+                    </div>
+
+                    <!-- Right Col: Security / HTTPS (removed) -->
+                    <div class="system-col">
+                        <h3 class="system-section-title">⚙️ Service</h3>
+                        <div class="system-service-card">
+                            <button id="btn-system-reboot" class="btn btn-outline-danger">Reboot Raspberry Pi</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+    </div><!-- /panel-content -->
+
+    <!-- Hidden compatibility elements for JS references -->
+    <span id="setting-samplerate"  style="display:none"></span>
+    <span id="setting-bitdepth"    style="display:none"></span>
+    <span id="setting-channels"    style="display:none"></span>
+    <span id="setting-autostart"   style="display:none"></span>
+    <span id="setting-mixer"       style="display:none"></span>
+    <span id="setting-device"      style="display:none"></span>
+    <span id="setting-osc"         style="display:none"></span>
+    <span id="setting-bitrate"     style="display:none"></span>
+    <span id="setting-storage"     style="display:none"></span>
+    <span id="setting-detection"   style="display:none"></span>
+    <span id="quality-status"      style="display:none"></span>
+    <span id="quality-estimate-val" style="display:none"></span>
+    <input id="input-venue"    type="text" style="display:none">
+    <input id="input-artist"   type="text" style="display:none">
+    <input id="input-engineer" type="text" style="display:none">
+    <div   id="preset-grid"           style="display:none"></div>
+    <button id="btn-apply-preset"     style="display:none"></button>
+    <button id="btn-arm-2ch"          style="display:none"></button>
+    <button id="btn-arm-16ch"         style="display:none"></button>
+    <button id="btn-arm-all"          style="display:none"></button>
+    <button id="btn-arm-none"         style="display:none"></button>
+
+</div><!-- /console-app -->
+
+<!-- Confirmation modal -->
+<div id="confirm-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+        <div class="modal-icon">&#9888;</div>
+        <h3 class="modal-title" id="modal-title">Confirm Delete</h3>
+        <p class="modal-message" id="modal-message"></p>
+        <div class="modal-actions">
+            <button class="btn modal-cancel" id="modal-cancel">Cancel</button>
+            <button class="btn modal-confirm" id="modal-confirm">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="js/meters.js"></script>
+<script src="js/recorder.js"></script>
+<script src="js/sessions.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
