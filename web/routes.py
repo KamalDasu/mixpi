@@ -668,6 +668,87 @@ def download_session_zip(session_name):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@api.route('/sessions/<path:session_name>/download-mixes', methods=['GET'])
+def download_mixes_zip(session_name):
+    """
+    Download a ZIP containing ONLY the stereo mixes for a session.
+    Accepts ?format=wav|mp3|m4a (defaults to wav).
+    Skips recordings that don't have a stereo mix generated yet.
+    """
+    if audio_engine and getattr(audio_engine, 'is_recording', False):
+        return jsonify({'success': False, 'message': 'Cannot batch zip mixes while recording is active'}), 400
+
+    fmt = request.args.get('format', 'wav').lower()
+    fmt_map = {
+        'wav': ('.wav', None, None),
+        'm4a': ('.m4a', 'aac', '256k'),
+        'mp3': ('.mp3', 'libmp3lame', '320k'),
+    }
+    if fmt not in fmt_map:
+        return jsonify({'success': False, 'message': f'Unsupported format: {fmt}'}), 400
+
+    suffix, codec, bitrate = fmt_map[fmt]
+
+    try:
+        from flask import send_file
+        import zipfile, io, tempfile, subprocess
+
+        target_path = (storage_manager.storage_path / session_name).resolve()
+        if not target_path.exists():
+            return jsonify({'success': False, 'message': 'Session not found'}), 404
+
+        memory_file = io.BytesIO()
+        zip_name = f"{Path(session_name).name}_StereoMixes"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                has_mixes = False
+                import web.websocket
+                # Find all recordings in this session
+                for rec_dir in sorted(target_path.iterdir()):
+                    if not rec_dir.is_dir():
+                        continue
+                    
+                    bounce_path = rec_dir / 'bounce' / 'stereo_mix.wav'
+                    if bounce_path.exists() and bounce_path.stat().st_size > 44:
+                        has_mixes = True
+                        rec_name = rec_dir.name
+                        arc_name = f"{rec_name}{suffix}"
+                        
+                        if web.websocket.socketio:
+                            web.websocket.socketio.emit('zip_progress', {
+                                'session': session_name,
+                                'file': arc_name
+                            })
+                            web.websocket.socketio.sleep(0)
+                        
+                        if fmt == 'wav':
+                            zf.write(bounce_path, arc_name)
+                        else:
+                            tmp_file = Path(tmpdir) / arc_name
+                            subprocess.run(
+                                ['ffmpeg', '-y', '-i', str(bounce_path),
+                                 '-c:a', codec, '-b:a', bitrate, str(tmp_file)],
+                                check=True, capture_output=True
+                            )
+                            zf.write(tmp_file, arc_name)
+
+        if not has_mixes:
+            return jsonify({'success': False, 'message': 'No stereo mixes found in this session. Please generate them first.'}), 404
+
+        memory_file.seek(0)
+        return send_file(memory_file, mimetype='application/zip',
+                         as_attachment=True,
+                         download_name=f'{zip_name}.zip')
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"ffmpeg export failed during batch zip: {e.stderr.decode() if e.stderr else str(e)}")
+        return jsonify({'success': False, 'message': 'Transcoding failed'}), 500
+    except Exception as e:
+        logger.error(f"Error creating mixes ZIP: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Stereo downmix helpers + auto-bounce
 # ---------------------------------------------------------------------------

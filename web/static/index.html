@@ -479,6 +479,25 @@
     </div>
 </div>
 
+<!-- Session Delete Modal -->
+<div id="session-delete-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="session-delete-title">
+    <div class="modal-box" style="max-width: 400px;">
+        <div class="modal-icon">&#9888;</div>
+        <h3 class="modal-title" id="session-delete-title">Delete Recordings</h3>
+        <p class="modal-message" id="session-delete-message">Select recordings to delete from this session. Cannot be undone.</p>
+        <div id="session-delete-list" style="text-align: left; max-height: 200px; overflow-y: auto; margin: 15px 0; border: 1px solid #333; padding: 10px; background: #1a1a1a; border-radius: 4px;">
+            <!-- Checkboxes injected here -->
+        </div>
+        <label style="display: block; text-align: left; margin-bottom: 15px; cursor: pointer;">
+            <input type="checkbox" id="session-delete-all"> <strong style="color: #ff4444;">Select All (Delete Entire Session)</strong>
+        </label>
+        <div class="modal-actions">
+            <button class="btn modal-cancel" id="session-delete-cancel">Cancel</button>
+            <button class="btn modal-confirm" id="session-delete-confirm" disabled>Delete Selected</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="js/meters.js"></script>
 <script src="js/recorder.js"></script>

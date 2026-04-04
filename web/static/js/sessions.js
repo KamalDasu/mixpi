@@ -70,21 +70,34 @@ class SessionsManager {
         wrap.className = 'show-group';
         wrap.dataset.show = show.name;
 
+        const safeName = this._esc(show.name);
+        const mixesFmtId = `show-mixes-fmt-${this._safeId(show.name)}`;
+
         wrap.innerHTML = `
-            <div class="show-header" onclick="sessionsManager.toggleShow('${this._esc(show.name)}')">
+            <div class="show-header" onclick="sessionsManager.toggleShow('${safeName}')">
                 <span class="show-chevron">&#9660;</span>
-                <span class="show-title">${this._esc(show.name)}</span>
-                <button class="btn-download show-zip-btn" title="Download entire show as ZIP"
-                    onclick="event.stopPropagation(); sessionsManager.downloadSession('${this._esc(show.name)}')">
+                <span class="show-title">${safeName}</span>
+                <button class="btn-download show-zip-btn" title="Download entire session as ZIP"
+                    onclick="event.stopPropagation(); sessionsManager.downloadSession('${safeName}')">
                     &#8659; ZIP &middot; ${recCount} rec
                 </button>
-                <button class="btn-delete show-delete-btn" title="Delete entire show"
-                    onclick="event.stopPropagation(); sessionsManager.deleteSession('${this._esc(show.name)}')">
+                <button class="btn-download show-zip-btn" title="Download only stereo mixes as ZIP"
+                    id="btn-mixes-zip-${this._safeId(show.name)}"
+                    onclick="event.stopPropagation(); sessionsManager._toggleFmt('${mixesFmtId}', this)">
+                    &#8659; Stereo Mixes ZIP
+                </button>
+                <span class="share-fmt-picker" id="${mixesFmtId}" style="display:none;" onclick="event.stopPropagation();">
+                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','wav')" title="Original quality WAV">WAV</button>
+                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','m4a')" title="AAC 256 kbps">M4A</button>
+                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','mp3')" title="MP3 320 kbps">MP3</button>
+                </span>
+                <button class="btn-delete show-delete-btn" title="Delete entire session"
+                    onclick="event.stopPropagation(); sessionsManager.deleteSession('${safeName}')">
                     &#128465;
                 </button>
             </div>
             ${show.notes ? `<div class="show-notes">${this._esc(show.notes)}</div>` : ''}
-            <div class="show-recordings" id="show-body-${this._esc(show.name)}"></div>
+            <div class="show-recordings" id="show-body-${safeName}"></div>
         `;
 
         const body = wrap.querySelector('.show-recordings');
@@ -545,7 +558,7 @@ class SessionsManager {
     }
 
     // ----------------------------------------------------------------
-    // Share
+    // Share & Download
     // ----------------------------------------------------------------
 
     _toggleFmt(fmtId, btn) {
@@ -556,10 +569,70 @@ class SessionsManager {
         btn.classList.toggle('active', !visible);
     }
 
-    // Navigate directly to the export URL — Flask sends Content-Disposition: attachment
-    // which triggers the browser's native download, identical to ZIP/file downloads.
+    async _downloadWithSpinner(url, filename, btnEl, fmtPickerEl, originalText) {
+        const _reset = () => {
+            if (btnEl) { btnEl.innerHTML = originalText; btnEl.disabled = false; }
+            if (fmtPickerEl) { fmtPickerEl.style.display = 'none'; }
+            if (btnEl) { btnEl.classList.remove('active'); }
+        };
+
+        if (fmtPickerEl) fmtPickerEl.style.display = 'none';
+        if (btnEl) {
+            btnEl.innerHTML = `<span class="share-spinner" style="margin-right: 6px; vertical-align: middle;"></span><span style="vertical-align: middle;">${filename}</span>`;
+            btnEl.disabled = true;
+        }
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) {
+                let errMsg = `HTTP ${res.status}`;
+                try {
+                    const errData = await res.json();
+                    errMsg = errData.message || errMsg;
+                } catch(e) {}
+                throw new Error(errMsg);
+            }
+            const blob = await res.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                window.URL.revokeObjectURL(blobUrl);
+                a.remove();
+            }, 1000);
+        } catch (e) {
+            console.error('Download failed:', e);
+            alert('Download failed: ' + e.message);
+        } finally {
+            _reset();
+        }
+    }
+
+    async downloadMixesZip(showName, fmt, btnEl) {
+        if (typeof recorder !== 'undefined' && recorder.isRecording) {
+            alert("Cannot batch zip mixes while recording is active.");
+            return;
+        }
+        const url = `/api/sessions/${this._esc(showName)}/download-mixes?format=${fmt}`;
+        const filename = `${showName}_StereoMixes.zip`;
+        const fmtPickerEl = document.getElementById(`show-mixes-fmt-${this._safeId(showName)}`);
+        // Find the Mixes ZIP button that was clicked. It's the previous sibling of the fmtPickerEl.
+        const mixBtnEl = fmtPickerEl ? fmtPickerEl.previousElementSibling : null;
+        await this._downloadWithSpinner(url, filename, mixBtnEl, fmtPickerEl, '&#8659; Stereo Mixes ZIP');
+    }
+
     downloadMix(relPath, fmt) {
-        window.location.href = `/api/sessions/${relPath}/bounce/export?format=${fmt}`;
+        const url = `/api/sessions/${relPath}/bounce/export?format=${fmt}`;
+        const recName = relPath.split('/').pop() || 'stereo_mix';
+        const filename = `${recName}.${fmt}`;
+        const id = this._safeId(relPath);
+        const btnEl = document.getElementById(`mixdl-${id}`);
+        const fmtPickerEl = document.getElementById(`mixdlfmt-${id}`);
+        this._downloadWithSpinner(url, filename, btnEl, fmtPickerEl, '&#8659; Download');
     }
 
     // Invokes the native OS share sheet (AirDrop, Messages, Files…).
@@ -607,6 +680,10 @@ class SessionsManager {
     }
 
     async deleteRecording(relPath) {
+        if (typeof recorder !== 'undefined' && recorder.isRecording) {
+            alert("Cannot delete recordings while a recording is active. Please stop recording first.");
+            return;
+        }
         const name = relPath.split('/').pop();
         const ok = await showConfirm(
             `Delete recording "${name}"?\n\nThis cannot be undone.`);
@@ -625,20 +702,65 @@ class SessionsManager {
     }
 
     async deleteSession(showName) {
-        const ok = await showConfirm(
-            `Delete entire show "${showName}" and all its recordings?\n\nThis cannot be undone.`);
-        if (!ok) return;
-        try {
-            const res  = await fetch(`/api/sessions/${showName}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (data.success) {
-                this.loadSessions();
-            } else {
-                alert('Failed to delete: ' + data.message);
+        const show = this.shows.find(s => s.name === showName);
+        if (!show) return;
+
+        const recordings = show.recordings || [];
+        if (recordings.length === 0) {
+            // If it's an empty show, just delete it directly
+            const ok = await showConfirm(`Delete empty session "${showName}"?\n\nThis cannot be undone.`);
+            if (!ok) return;
+            try {
+                const res = await fetch(`/api/sessions/${showName}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) this.loadSessions();
+                else alert('Failed to delete: ' + data.message);
+            } catch (e) {
+                alert('Error deleting show');
             }
-        } catch (e) {
-            alert('Error deleting show');
+            return;
         }
+
+        const selectedPaths = await showDeleteSessionModal(showName, recordings);
+        if (!selectedPaths) return; // Cancelled
+
+        // Check if any recording is currently active
+        if (typeof recorder !== 'undefined' && recorder.isRecording) {
+            alert("Cannot delete recordings while a recording is active. Please stop recording first.");
+            return;
+        }
+
+        // If they selected all recordings, delete the whole show folder
+        if (selectedPaths.length === recordings.length) {
+            try {
+                const res = await fetch(`/api/sessions/${showName}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) this.loadSessions();
+                else alert('Failed to delete show: ' + data.message);
+            } catch (e) {
+                alert('Error deleting show');
+            }
+            return;
+        }
+
+        // Otherwise, delete individual recordings
+        let hasError = false;
+        for (const relPath of selectedPaths) {
+            try {
+                const res = await fetch(`/api/sessions/${relPath}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!data.success) {
+                    console.error('Failed to delete:', data.message);
+                    hasError = true;
+                }
+            } catch (e) {
+                console.error('Error deleting recording:', e);
+                hasError = true;
+            }
+        }
+        
+        if (hasError) alert('Some recordings failed to delete. Check console for details.');
+        this.loadSessions();
     }
 
     // ----------------------------------------------------------------
@@ -713,6 +835,90 @@ function showConfirm(message) {
         function onKey(e) {
             if (e.key === 'Escape') finish(false);
             if (e.key === 'Enter')  finish(true);
+        }
+
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+        overlay.addEventListener('keydown', onKey);
+    });
+}
+
+/**
+ * Styled session delete modal allowing selection of recordings.
+ */
+function showDeleteSessionModal(showName, recordings) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('session-delete-modal');
+        const titleEl = document.getElementById('session-delete-title');
+        const listEl  = document.getElementById('session-delete-list');
+        const btnOk   = document.getElementById('session-delete-confirm');
+        const btnCancel = document.getElementById('session-delete-cancel');
+        const chkAll  = document.getElementById('session-delete-all');
+
+        titleEl.textContent = `Delete from "${showName}"`;
+        listEl.innerHTML = '';
+        chkAll.checked = false;
+        btnOk.disabled = true;
+
+        const checkboxes = [];
+
+        recordings.forEach(rec => {
+            const label = document.createElement('label');
+            label.style.display = 'block';
+            label.style.marginBottom = '5px';
+            label.style.cursor = 'pointer';
+
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.value = rec.rel_path;
+            chk.style.marginRight = '10px';
+            
+            chk.addEventListener('change', () => {
+                const checkedCount = checkboxes.filter(c => c.checked).length;
+                chkAll.checked = (checkedCount === checkboxes.length);
+                btnOk.disabled = (checkedCount === 0);
+            });
+
+            const span = document.createElement('span');
+            span.textContent = rec.name;
+
+            label.appendChild(chk);
+            label.appendChild(span);
+            listEl.appendChild(label);
+            checkboxes.push(chk);
+        });
+
+        chkAll.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            checkboxes.forEach(c => c.checked = isChecked);
+            btnOk.disabled = !isChecked;
+        });
+
+        overlay.style.display = 'flex';
+        btnCancel.focus();
+
+        function finish(result) {
+            overlay.style.display = 'none';
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('keydown', onKey);
+            
+            // chkAll listener is anonymous but we recreate it every time anyway,
+            // better to cloneNode to strip old listeners if we cared, 
+            // but we can just replace chkAll to be safe.
+            const newChkAll = chkAll.cloneNode(true);
+            chkAll.parentNode.replaceChild(newChkAll, chkAll);
+
+            resolve(result);
+        }
+
+        function onOk() {
+            const selected = checkboxes.filter(c => c.checked).map(c => c.value);
+            finish(selected);
+        }
+        function onCancel() { finish(null); }
+        function onKey(e) {
+            if (e.key === 'Escape') finish(null);
         }
 
         btnOk.addEventListener('click', onOk);

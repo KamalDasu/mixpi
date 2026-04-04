@@ -548,6 +548,14 @@ function initWebSocket() {
         handleStatusUpdate(data);
     });
     
+    socket.on('zip_progress', (data) => {
+        const btnId = `btn-mixes-zip-${sessionsManager._safeId(data.session)}`;
+        const btn = document.getElementById(btnId);
+        if (btn && btn.disabled) {
+            btn.innerHTML = `<span class="share-spinner" style="margin-right: 6px; vertical-align: middle;"></span><span style="vertical-align: middle;">${data.file}</span>`;
+        }
+    });
+
     socket.on('error', (data) => {
         console.error('Server error:', data.message);
         alert(`Error: ${data.message}`);
