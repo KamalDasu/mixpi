@@ -2,8 +2,8 @@
 # =============================================================================
 #  MixPi — WiFi Access Point setup
 #
-#  Turns wlan0 into a dedicated "mixpi-1" WiFi hotspot so the recorder
-#  is always reachable at a fixed IP (192.168.4.1) regardless of venue WiFi.
+#  Turns wlan0 into a dedicated WiFi hotspot (SSID <hostname>-ap-<last4 MAC hex>)
+#  so the recorder is always reachable at a fixed IP regardless of venue WiFi.
 #
 #  Prerequisites: Raspberry Pi OS Bookworm / Debian 12+ with NetworkManager
 #
@@ -11,18 +11,40 @@
 #      sudo bash /opt/mixpi/scripts/setup_ap.sh
 #
 #  After running:
-#    • Connect your iPad/laptop to WiFi network "mixpi-1"
+#    • Connect your iPad/laptop to the MixPi WiFi (see printed SSID)
 #    • Open https://192.168.4.1:5000
 # =============================================================================
 set -euo pipefail
 
-AP_SSID="${AP_SSID:-mixpi-1}"
+_MIXPI_SCR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=mixpi_constants.sh
+. "$_MIXPI_SCR/mixpi_constants.sh"
+
+AP_IFACE="${AP_IFACE:-wlan0}"
+
+# Default SSID: <short-hostname>-ap-<last 4 hex chars of AP_IFACE MAC> (must match install-pi.sh)
+_mixpi_default_ap_ssid() {
+    local hn mac hex suffix
+    hn="$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')"
+    [ -z "$hn" ] && hn="mixpi"
+    [ "${#hn}" -gt 20 ] && hn="${hn:0:20}"
+    if [ -r "/sys/class/net/${AP_IFACE}/address" ]; then
+        mac="$(cat "/sys/class/net/${AP_IFACE}/address")"
+    else
+        mac="00:00:00:00:00:00"
+    fi
+    hex="${mac//:/}"
+    suffix="${hex: -4}"
+    [ "${#suffix}" -lt 4 ] && suffix="0000"
+    echo "${hn}-ap-${suffix}"
+}
+
+AP_SSID="${AP_SSID:-$(_mixpi_default_ap_ssid)}"
 AP_PASSWORD="${AP_PASSWORD:-mixpi123}"
 AP_IP="10.10.10.1"
-AP_IFACE="wlan0"
-CON_NAME="MixPi-AP"
+CON_NAME="$MIXPI_NM_CON_NAME"
 CERT_DIR="/opt/mixpi/certs"
-SERVICE="mixpi-recorder.service"
+SERVICE="$MIXPI_SYSTEMD_SERVICE"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()  { echo -e "${CYAN}▶  $*${NC}"; }
@@ -35,7 +57,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # ── 1. Remove old AP profile if it exists ────────────────────────────────────
-info "Removing any previous MixPi-AP profile…"
+info "Removing any previous AP profile ($CON_NAME)…"
 nmcli con delete "$CON_NAME" 2>/dev/null || true
 
 # ── 2. Create the AP connection ───────────────────────────────────────────────

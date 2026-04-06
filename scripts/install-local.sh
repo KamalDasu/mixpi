@@ -4,6 +4,60 @@
 
 set -e
 
+# Spinner while pip/venv runs
+CYAN='\033[0;36m'
+NC='\033[0m'
+run_with_spinner() {
+    local msg="$1"
+    shift
+    (
+        local i=0
+        local frames='|/-\'
+        while true; do
+            printf "\r  ${CYAN}%s${NC} %s" "${frames:i%4:1}" "$msg"
+            sleep 0.12
+            i=$((i + 1))
+        done
+    ) &
+    local spid=$!
+    set +e
+    "$@"
+    local rc=$?
+    set -e
+    kill "$spid" 2>/dev/null || true
+    wait "$spid" 2>/dev/null || true
+    printf "\r\033[K"
+    if [ "$rc" -ne 0 ]; then
+        return "$rc"
+    fi
+    return 0
+}
+
+_mixpi_use_piwheels_if_arm() {
+    case "$(uname -m)" in
+        aarch64 | armv7l | armv6l)
+            export PIP_EXTRA_INDEX_URL="${PIP_EXTRA_INDEX_URL:-https://www.piwheels.org/simple}"
+            echo "Using piwheels.org extra index (pre-built ARM wheels)."
+            ;;
+    esac
+}
+
+_mixpi_pip_install_requirements() {
+    local pip="$1" req="$2" log="/tmp/mixpi-pip-install.log"
+    export PIP_PROGRESS_BAR=off
+    _mixpi_use_piwheels_if_arm
+    rm -f "$log"
+    if ! run_with_spinner "Installing Python packages (full log: $log)…" \
+        bash -c '"$0" install -q --upgrade pip >>"$2" 2>&1 && "$0" install -r "$1" --prefer-binary -q >>"$2" 2>&1' \
+        "$pip" "$req" "$log"; then
+        echo "pip install failed. Last 50 lines of $log:" >&2
+        tail -50 "$log" >&2 || true
+        echo "Complete log: $log" >&2
+        exit 1
+    fi
+    rm -f "$log"
+}
+
 echo "=========================================="
 echo "MixPi Recorder - Local Installation"
 echo "=========================================="
@@ -44,19 +98,23 @@ echo ""
 echo "System dependencies installed successfully!"
 echo ""
 
-# Create virtual environment if it doesn't exist
+# Create virtual environment if it doesn't exist (--system-site-packages: reuse
+# apt-installed python3-* packages where compatible; pip still satisfies pins.)
 if [ ! -d "venv" ]; then
     echo "Creating Python virtual environment..."
-    python3 -m venv venv
+    run_with_spinner "Creating Python virtual environment..." \
+        python3 -m venv --system-site-packages venv
 else
     echo "Virtual environment already exists, skipping..."
 fi
 
 # Activate virtual environment and install Python dependencies
 echo "Installing Python dependencies..."
+# shellcheck source=/dev/null
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+PIP="$(command -v pip)"
+REQ="$INSTALL_DIR/requirements.txt"
+_mixpi_pip_install_requirements "$PIP" "$REQ"
 
 echo ""
 echo "Python dependencies installed successfully!"

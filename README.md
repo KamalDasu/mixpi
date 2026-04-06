@@ -147,7 +147,7 @@ This script automates the entire setup:
 1.  **System Packages**: Installs `git`, `python3`, `ffmpeg`, `mkcert`, and audio libraries.
 2.  **Application**: Clones the repo to `/opt/mixpi` and sets up a Python virtual environment.
 3.  **Service**: Installs the `mixpi-recorder` systemd service to auto-start on boot.
-4.  **Networking**: Configures a WiFi Access Point (**mixpi-1**) and mDNS (**<hostname>.local**).
+4.  **Networking**: Configures a WiFi Access Point (SSID **`<hostname>-ap-<last4>`**, e.g. `mixpi-ap-a3f2`, from `wlan0` MAC) and mDNS (**<hostname>.local**).
 5.  **Security**: Optional self-signed HTTPS certificate (disabled by default).
 6.  **Optimisation**: Applies system tweaks for low-latency audio.
 
@@ -159,7 +159,7 @@ sudo reboot
 
 ### Step 4 — Connect and Trust (One-time per device)
 
-1.  **Join WiFi**: Connect your phone/tablet to the **mixpi-1** network (password: `mixpi123`).
+1.  **Join WiFi**: Connect your phone/tablet to the MixPi network (SSID shown at end of install, format **`<hostname>-ap-<last4>`**; password: `mixpi123`).
 2.  **Open App**: Open Safari/Chrome and go to `http://<hostname>.local:5000`.
 3.  **Optional (AirDrop)**: To enable AirDrop/Web Share on iOS, you must enable HTTPS. See [Detailed Setup Guide](#detailed-setup-guide) below.
 
@@ -206,7 +206,7 @@ The app uses HTTPS so that AirDrop / Web Share works on iOS. Because the certifi
 http://<hostname>.local:5000
 ```
 
-Or via IP if mDNS isn't resolving: `http://10.10.10.1:5000` (when on the `mixpi-1` WiFi).
+Or via IP if mDNS isn't resolving: `http://10.10.10.1:5000` (when connected to the Pi’s MixPi WiFi AP).
 
 **Note:** If you have enabled HTTPS, use: `https://<hostname>.local:5000`. You will see a "Not Secure" warning until you complete the CA certificate trust steps above.
 
@@ -360,7 +360,7 @@ sudo systemctl restart mixpi-recorder
 ### Cannot reach <hostname>.local
 
 If mDNS isn't resolving (common on first connect or after a network change):
-- Try the direct AP IP: `https://10.10.10.1:5000` (when connected to `mixpi-1` WiFi)
+- Try the direct AP IP: `https://10.10.10.1:5000` (when connected to the Pi’s MixPi WiFi AP)
 - On iOS, toggle Airplane Mode off/on to flush the DNS cache
 
 ### Share button does nothing / AirDrop not available

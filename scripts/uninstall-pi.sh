@@ -11,6 +11,18 @@
 
 set -euo pipefail
 
+_UNINSTALL_SCR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$_UNINSTALL_SCR/mixpi_constants.sh" ]; then
+    # shellcheck source=mixpi_constants.sh
+    . "$_UNINSTALL_SCR/mixpi_constants.sh"
+fi
+: "${MIXPI_NM_CON_NAME:=MixPi-AP}"
+: "${MIXPI_NM_LEGACY_CON_NAMES:=mixpi-1}"
+: "${MIXPI_SYSTEMD_SERVICE:=mixpi-recorder.service}"
+: "${MIXPI_AVAHI_SERVICE_FILE:=mixpi.service}"
+: "${MIXPI_SUDOERS_BASES:=mixpi-system mixpi-storage}"
+MIXPI_SVC="${MIXPI_SYSTEMD_SERVICE%.service}"
+
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'
 RED='\033[0;31m'; NC='\033[0m'; BOLD='\033[1m'
 
@@ -36,41 +48,57 @@ if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# 1. Stop and disable service
+# 1. Stop and disable service (unit name from mixpi_constants.sh)
 hdr "Removing systemd service"
-if systemctl is-active --quiet mixpi-recorder || systemctl is-enabled --quiet mixpi-recorder; then
-    systemctl stop mixpi-recorder 2>/dev/null || true
-    systemctl disable mixpi-recorder 2>/dev/null || true
-    rm -f /etc/systemd/system/mixpi-recorder.service
+if systemctl is-active --quiet "$MIXPI_SVC" || systemctl is-enabled --quiet "$MIXPI_SVC"; then
+    systemctl stop "$MIXPI_SVC" 2>/dev/null || true
+    systemctl disable "$MIXPI_SVC" 2>/dev/null || true
+    rm -f "/etc/systemd/system/$MIXPI_SYSTEMD_SERVICE"
     systemctl daemon-reload
-    ok "mixpi-recorder service removed"
+    ok "$MIXPI_SVC service removed"
 else
     info "Service not found or already removed"
 fi
 
-# 2. Remove WiFi AP
+# 2. Remove WiFi AP (NM profile name is fixed; SSID shown to users is separate)
 hdr "Removing WiFi Access Point"
-if command -v nmcli &>/dev/null && nmcli connection show "mixpi-1" &>/dev/null; then
-    nmcli connection delete "mixpi-1" >/dev/null
-    ok "WiFi AP 'mixpi-1' removed"
+if command -v nmcli &>/dev/null; then
+    REMOVED_AP=0
+    # shellcheck disable=SC2086
+    for con in "$MIXPI_NM_CON_NAME" $MIXPI_NM_LEGACY_CON_NAMES; do
+        nmcli connection delete "$con" &>/dev/null && REMOVED_AP=1 || true
+    done
+    if [ "$REMOVED_AP" -eq 1 ]; then
+        ok "WiFi AP connection removed"
+    else
+        info "MixPi WiFi AP connection not found"
+    fi
 else
-    info "WiFi AP 'mixpi-1' not found"
+    info "nmcli not found — skipping AP removal"
 fi
 
 # 3. Remove mDNS
 hdr "Removing mDNS configuration"
-if [ -f /etc/avahi/services/mixpi.service ]; then
-    rm -f /etc/avahi/services/mixpi.service
+AVAHI_MIXPI="/etc/avahi/services/$MIXPI_AVAHI_SERVICE_FILE"
+if [ -f "$AVAHI_MIXPI" ]; then
+    rm -f "$AVAHI_MIXPI"
     systemctl restart avahi-daemon 2>/dev/null || true
     ok "mDNS configuration removed"
 else
     info "mDNS config not found"
 fi
 
-# 4. Remove Sudoers
+# 4. Remove Sudoers (basenames listed in mixpi_constants.sh)
 hdr "Removing sudoers configuration"
-if [ -f /etc/sudoers.d/mixpi-storage ]; then
-    rm -f /etc/sudoers.d/mixpi-storage
+REMOVED=0
+for base in $MIXPI_SUDOERS_BASES; do
+    f="/etc/sudoers.d/$base"
+    if [ -f "$f" ]; then
+        rm -f "$f"
+        REMOVED=1
+    fi
+done
+if [ "$REMOVED" -eq 1 ]; then
     ok "Sudoers config removed"
 else
     info "Sudoers config not found"

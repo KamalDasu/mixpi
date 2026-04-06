@@ -14,13 +14,13 @@
 #    2. Clones the repo to /opt/mixpi
 #    3. Creates Python venv and installs dependencies
 #    4. Installs systemd service (auto-start on boot)
-#    5. Sets up WiFi Access Point: mixpi-1 / mixpi123
+#    5. Sets up WiFi Access Point: <hostname>-ap-<last4 wlan MAC hex> / mixpi123
 #    6. Generates HTTPS certificate (hostname.local + 10.10.10.1)
 #    7. Applies Pi optimisations (CPU governor, ALSA, audio priorities)
 #    8. Starts the mixpi-recorder service
 #
 #  Optional environment variables:
-#    AP_SSID=mixpi-1          WiFi network name  (default: mixpi-1)
+#    AP_SSID=myname           WiFi network name  (default: <hostname>-ap-<MAC4>)
 #    AP_PASSWORD=mixpi123     WiFi password      (default: mixpi123)
 #    SKIP_AP=1                Skip WiFi AP setup
 #    SKIP_HTTPS=1             Skip HTTPS cert
@@ -29,10 +29,27 @@
 
 set -euo pipefail
 
+# Default AP SSID: <short-hostname>-ap-<last 4 hex chars of wlan0 MAC> (must match setup_ap.sh)
+_mixpi_default_ap_ssid() {
+    local hn mac hex suffix iface="wlan0"
+    hn="$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')"
+    [ -z "$hn" ] && hn="mixpi"
+    [ "${#hn}" -gt 20 ] && hn="${hn:0:20}"
+    if [ -r "/sys/class/net/${iface}/address" ]; then
+        mac="$(cat "/sys/class/net/${iface}/address")"
+    else
+        mac="00:00:00:00:00:00"
+    fi
+    hex="${mac//:/}"
+    suffix="${hex: -4}"
+    [ "${#suffix}" -lt 4 ] && suffix="0000"
+    echo "${hn}-ap-${suffix}"
+}
+
 REPO_URL="https://github.com/KamalDasu/mixpi.git"
 INSTALL_DIR="/opt/mixpi"
 SERVICE="mixpi-recorder"
-AP_SSID="${AP_SSID:-mixpi-1}"
+AP_SSID="${AP_SSID:-$(_mixpi_default_ap_ssid)}"
 AP_PASSWORD="${AP_PASSWORD:-mixpi123}"
 SKIP_AP="${SKIP_AP:-0}"
 SKIP_HTTPS="${SKIP_HTTPS:-1}"
@@ -47,6 +64,59 @@ info() { echo -e "${CYAN}  →  $*${NC}"; }
 warn() { echo -e "${YELLOW}  ⚠  $*${NC}"; }
 err()  { echo -e "${RED}  ✗  $*${NC}"; exit 1; }
 hdr()  { echo -e "\n${BOLD}${CYAN}══ $* ══${NC}"; }
+
+# Spinner while a long command runs (safe with set -e)
+run_with_spinner() {
+    local msg="$1"
+    shift
+    (
+        local i=0
+        local frames='|/-\'
+        while true; do
+            printf "\r  ${CYAN}%s${NC} %s" "${frames:i%4:1}" "$msg"
+            sleep 0.12
+            i=$((i + 1))
+        done
+    ) &
+    local spid=$!
+    set +e
+    "$@"
+    local rc=$?
+    set -e
+    kill "$spid" 2>/dev/null || true
+    wait "$spid" 2>/dev/null || true
+    printf "\r\033[K"
+    if [ "$rc" -ne 0 ]; then
+        return "$rc"
+    fi
+    return 0
+}
+
+# Raspberry Pi / ARM: piwheels.org provides pre-built wheels (avoids compiling numpy, etc.)
+_mixpi_use_piwheels_if_arm() {
+    case "$(uname -m)" in
+        aarch64 | armv7l | armv6l)
+            export PIP_EXTRA_INDEX_URL="${PIP_EXTRA_INDEX_URL:-https://www.piwheels.org/simple}"
+            info "Using piwheels.org extra index (pre-built ARM wheels, faster than compiling)."
+            ;;
+    esac
+}
+
+# pip's --quiet does not hide gcc/cmake output from source builds; send it all to a log file.
+_mixpi_pip_install_requirements() {
+    local pip="$1" req="$2" log="/tmp/mixpi-pip-install.log"
+    export PIP_PROGRESS_BAR=off
+    _mixpi_use_piwheels_if_arm
+    rm -f "$log"
+    if ! run_with_spinner "Installing Python packages (full log: $log)…" \
+        bash -c '"$0" install -q --upgrade pip >>"$2" 2>&1 && "$0" install -r "$1" --prefer-binary -q >>"$2" 2>&1' \
+        "$pip" "$req" "$log"; then
+        warn "pip install failed. Last 50 lines of $log:"
+        tail -50 "$log" >&2 || true
+        err "pip install failed — see $log on the Pi."
+    fi
+    rm -f "$log"
+}
 
 # Must NOT be run as root directly — we use sudo internally
 if [ "$EUID" -eq 0 ]; then
@@ -95,10 +165,16 @@ fi
 ok "Code at $INSTALL_DIR"
 
 # ── Step 3 — Python venv ─────────────────────────────────────────────────────
+# venv uses --system-site-packages so apt python3-* libs are visible, but
+# pip still installs requirements.txt into the venv (pinned versions take
+# precedence). --prefer-binary + piwheels (ARM) avoids slow source builds.
 info "Setting up Python virtual environment..."
-[ ! -d "$INSTALL_DIR/venv" ] && python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip --quiet
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" --quiet
+if [ ! -d "$INSTALL_DIR/venv" ]; then
+    run_with_spinner "Creating Python virtual environment..." \
+        python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
+fi
+PIP="$INSTALL_DIR/venv/bin/pip"
+_mixpi_pip_install_requirements "$PIP" "$INSTALL_DIR/requirements.txt"
 ok "Python dependencies installed"
 
 # ── Step 4 — Config ───────────────────────────────────────────────────────────

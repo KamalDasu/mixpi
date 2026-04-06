@@ -290,7 +290,7 @@ sudo journalctl -u mixpi-recorder -f    # live logs
 
 ### WiFi Access Point
 
-The Pi creates a WiFi hotspot `mixpi-1` (password: `mixpi123`) on `wlan0` so devices can connect without any other network infrastructure. To customise:
+The Pi creates a WiFi hotspot on `wlan0` with SSID **`<hostname>-ap-<last 4 hex chars of wlan0 MAC>`** (password: `mixpi123`) unless you override `AP_SSID` / `AP_PASSWORD` before running the installer. To set a custom SSID/password later:
 
 ```bash
 AP_SSID="MyStudio" AP_PASSWORD="MyPassword" sudo bash /opt/mixpi/scripts/setup_ap.sh
