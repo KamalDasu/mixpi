@@ -11,7 +11,6 @@ let meters;
 // UI Elements
 const elements = {
     btnRecord: null,
-    btnStop: null,
     btnMarker: null,
     btnResetPeaks: null,
     connectionStatus: null,
@@ -36,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('MusicPi Recorder starting...');
 
     initElements();
+    initBuildVersion();  // fetch git hash and show in panel bar
     initViewToggle();    // mobile/desktop view toggle (must run before initTabs)
     initTabs();          // wire up bottom-panel tabs
     initDiscovery();     // network discovery panel
@@ -45,9 +45,32 @@ document.addEventListener('DOMContentLoaded', () => {
     recorder._initTimeline();   // draw idle waveform on load
     initWebSocket();
     setupEventListeners();
+    syncRecordTransportButton();
     loadConfig();
     loadStorageLocations();  // populate STORAGE dropdown (includes write-speed benchmark)
 });
+
+// ── Build version badge ──────────────────────────────────────────────────────
+function initBuildVersion() {
+    fetch('/api/version')
+        .then(r => r.json())
+        .then(data => {
+            const el = document.getElementById('build-version');
+            if (!el || !data.hash) return;
+            const ver = data.semver || 'v1.0';
+            let tag = `${ver} (${data.hash})`;
+            if (data.date) {
+                const d = new Date(data.date + 'T00:00:00');
+                const mon = ['Jan','Feb','Mar','Apr','May','Jun',
+                             'Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+                const dd  = String(d.getDate()).padStart(2, '0');
+                const yy  = String(d.getFullYear()).slice(-2);
+                tag = `${ver}-${mon}${dd}${yy} (${data.hash})`;
+            }
+            el.textContent = tag;
+        })
+        .catch(() => {});
+}
 
 // ── HTTPS setup banner ────────────────────────────────────────────────────────
 function initHttpsBanner() {
@@ -462,7 +485,6 @@ function initViewToggle() {
 
 function initElements() {
     elements.btnRecord = document.getElementById('btn-record');
-    elements.btnStop = document.getElementById('btn-stop');
     elements.btnMarker = document.getElementById('btn-marker');
     elements.btnResetPeaks = document.getElementById('btn-reset-peaks');
     elements.connectionStatus = document.getElementById('connection-status');
@@ -571,7 +593,6 @@ function initWebSocket() {
 
 function setupEventListeners() {
     elements.btnRecord.addEventListener('click', handleRecordClick);
-    elements.btnStop.addEventListener('click', handleStopClick);
     elements.btnMarker.addEventListener('click', handleMarkerClick);
     elements.btnResetPeaks.addEventListener('click', handleResetPeaksClick);
 
@@ -966,8 +987,22 @@ function _updateChPresetDropdown(ch) {
     `;
 }
 
+/** REC / STOP combined control — update aria-label for screen readers */
+function syncRecordTransportButton() {
+    const rec = elements.btnRecord;
+    if (!rec) return;
+    const recording = rec.classList.contains('recording') || (recorder && recorder.isRecording);
+    rec.setAttribute('aria-label', recording ? 'Stop recording' : 'Record');
+}
+
 async function handleRecordClick() {
     try {
+        // Same button stops when already recording
+        if (recorder.isRecording || elements.btnRecord.classList.contains('recording')) {
+            void handleStopClick();
+            return;
+        }
+
         // Block recording if quality/storage settings haven't been applied yet
         const applyBtn = elements.btnApplyConfig;
         if (applyBtn && applyBtn.classList.contains('pending')) {
@@ -1016,26 +1051,27 @@ async function handleRecordClick() {
         presetManager.lockDuringRecording(true);
         _updateConfirmedDisplay();
 
-        // Update UI
+        // Update UI — keep REC button enabled so user can tap again to stop
         elements.btnRecord.classList.add('recording');
-        elements.btnStop.disabled = false;
+        elements.btnRecord.disabled = false;
         elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-        
-        
+        syncRecordTransportButton();
+
         // Clear markers list
         clearMarkersList();
-        
+
     } catch (error) {
         alert(`Failed to start recording: ${error.message}`);
         elements.btnRecord.disabled = false;
+        syncRecordTransportButton();
     }
 }
 
 async function handleStopClick() {
     try {
-        elements.btnStop.disabled = true;
-        
+        elements.btnRecord.disabled = true;
+
         await recorder.stopRecording();
 
         // Unlock pre-record row and arm buttons
@@ -1047,7 +1083,7 @@ async function handleStopClick() {
         elements.btnRecord.disabled = false;
         elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
-        
+        syncRecordTransportButton();
 
         // Clear the TRACK/SONG field — engineer should name the next song fresh
         if (elements.inputTrackName) {
@@ -1060,7 +1096,8 @@ async function handleStopClick() {
 
     } catch (error) {
         alert(`Failed to stop recording: ${error.message}`);
-        elements.btnStop.disabled = false;
+        elements.btnRecord.disabled = false;
+        syncRecordTransportButton();
     }
 }
 
@@ -1201,11 +1238,11 @@ async function _startAutoRecording() {
         presetManager.lockDuringRecording(true);
 
         elements.btnRecord.classList.add('recording');
-        elements.btnRecord.disabled = true;
-        elements.btnStop.disabled = false;
+        elements.btnRecord.disabled = false;
         elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-        
+        syncRecordTransportButton();
+
         clearMarkersList();
     } catch (err) {
         console.error('Auto-start recording failed:', err);
@@ -1229,10 +1266,9 @@ function handleStatusUpdate(data) {
 
         elements.btnRecord.classList.remove('recording');
         elements.btnRecord.disabled = false;
-        elements.btnStop.disabled = true;
         elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
-        
+        syncRecordTransportButton();
 
         recorder.isRecording = false;
         recorder.stopTimer();
@@ -1402,12 +1438,11 @@ async function loadStatus() {
         if (status.recording) {
             if (status.recording.is_recording) {
                 elements.btnRecord.classList.add('recording');
-                elements.btnRecord.disabled = true;
-                elements.btnStop.disabled = false;
+                elements.btnRecord.disabled = false;
                 elements.btnMarker.disabled = false;
                 elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-                
-                
+                syncRecordTransportButton();
+
                 recorder.isRecording = true;
                 recorder.recordingStartTime = Date.now() - (status.recording.duration * 1000);
                 recorder.startTimer();
@@ -1429,13 +1464,14 @@ function updateConnectionStatus(connected) {
         elements.connectionStatus.classList.remove('disconnected');
         elements.connectionText.textContent = 'Connected';
         elements.btnRecord.disabled = false;
+        syncRecordTransportButton();
     } else {
         elements.connectionStatus.classList.add('disconnected');
         elements.connectionStatus.classList.remove('connected');
         elements.connectionText.textContent = 'Disconnected';
         elements.btnRecord.disabled = true;
-        elements.btnStop.disabled = true;
         elements.btnMarker.disabled = true;
+        syncRecordTransportButton();
     }
 }
 

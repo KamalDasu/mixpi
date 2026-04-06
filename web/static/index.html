@@ -45,6 +45,7 @@
                 <polygon points="66,60 66,100 107,80" fill="rgba(255,255,255,0.42)"/>
             </svg>
             <span class="hdr-title">MixPi</span>
+            <span class="hdr-build" id="build-version"></span>
         </div>
 
         <div class="hdr-center"></div>
@@ -67,7 +68,6 @@
         <button class="panel-tab" data-tab="routing" role="tab">Routing</button>
         <button class="panel-tab" data-tab="storage" role="tab">System</button>
         <div class="panel-tabs-spacer"></div>
-        <span class="panel-version">MixPi v1.0</span>
     </div>
 
     <!-- ── Discovery / connection status bar ───────────────────────────── -->
@@ -224,12 +224,17 @@
         <div class="tpt-buttons">
             <div class="tpt-btn-group">
                 <button id="btn-record" class="btn tpt-btn tpt-rec" disabled aria-label="Record">
-                    <svg class="rec-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <svg class="rec-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <defs>
                             <radialGradient id="r-red" cx="38%" cy="32%" r="68%">
                                 <stop offset="0%"   stop-color="#ff5c5c"/>
                                 <stop offset="50%"  stop-color="#dc1e1e"/>
                                 <stop offset="100%" stop-color="#7d0000"/>
+                            </radialGradient>
+                            <radialGradient id="r-red-active" cx="38%" cy="32%" r="68%">
+                                <stop offset="0%"   stop-color="#ff7a7a"/>
+                                <stop offset="45%"  stop-color="#ff2828"/>
+                                <stop offset="100%" stop-color="#a80000"/>
                             </radialGradient>
                             <radialGradient id="r-rim" cx="42%" cy="36%" r="64%">
                                 <stop offset="0%"   stop-color="#4a4a4a"/>
@@ -244,31 +249,46 @@
                                 <stop offset="0%"   stop-color="rgba(255,255,255,0.14)"/>
                                 <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
                             </radialGradient>
-                            <path id="r-arc" d="M 24,100 A 76,76 0 0 1 176,100 A 76,76 0 0 1 24,100"/>
+                            <path id="r-arc-top" d="M 24,100 A 76,76 0 0 1 176,100" fill="none"/>
+                            <path id="r-arc-bottom" d="M 24,100 A 76,76 0 0 0 176,100" fill="none"/>
                         </defs>
                         <circle cx="100" cy="100" r="99" fill="url(#r-rim)"/>
-                        <path d="M 24,75 A 80,80 0 0 1 125,20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-linecap="round"/>
-                        <circle cx="100" cy="100" r="87" fill="url(#r-red)"/>
-                        <circle cx="100" cy="100" r="87" fill="url(#r-glow)"/>
-                        <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
-                        <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.30)" transform="translate(3,4)"/>
-                        <polygon points="66,60 66,140 148,100" fill="url(#r-play)"/>
-                        <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
-                        <polygon points="66,100 66,140 107,120" fill="rgba(0,0,0,0.10)"/>
-                        <!-- Red REC label inside the play triangle -->
-                        <text x="103" y="103" text-anchor="middle" dominant-baseline="middle"
-                              font-family="-apple-system,Helvetica,sans-serif"
-                              font-size="22" font-weight="900" letter-spacing="0.08em"
-                              fill="#aa0000">REC</text>
-                        <!-- Kamal Dasu watermark along bottom arc -->
-                        <text font-family="-apple-system,Helvetica,sans-serif" font-size="9.5"
-                              font-weight="400" letter-spacing="0.18em" fill="rgba(120,220,100,0.70)">
-                            <textPath href="#r-arc" startOffset="25%" text-anchor="middle">KAMAL DASU</textPath>
-                        </text>
+                        <!-- Idle: play triangle + REC -->
+                        <g class="rec-svg-idle">
+                            <path d="M 24,75 A 80,80 0 0 1 125,20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="100" cy="100" r="87" fill="url(#r-red)"/>
+                            <circle cx="100" cy="100" r="87" fill="url(#r-glow)"/>
+                            <ellipse cx="84" cy="68" rx="46" ry="21" fill="rgba(255,255,255,0.16)"/>
+                            <polygon points="66,60 66,140 148,100" fill="rgba(0,0,0,0.30)" transform="translate(3,4)"/>
+                            <polygon points="66,60 66,140 148,100" fill="url(#r-play)"/>
+                            <polygon points="66,60 66,100 107,80"  fill="rgba(255,255,255,0.42)"/>
+                            <polygon points="66,100 66,140 107,120" fill="rgba(0,0,0,0.10)"/>
+                            <text x="103" y="103" text-anchor="middle" dominant-baseline="middle"
+                                  font-family="-apple-system,Helvetica,sans-serif"
+                                  font-size="22" font-weight="900" letter-spacing="0.08em"
+                                  fill="#aa0000">REC</text>
+                        </g>
+                        <!-- Recording: stop square + STOP (toggled via .tpt-rec.recording) -->
+                        <g class="rec-svg-active" visibility="hidden">
+                            <circle cx="100" cy="100" r="87" fill="url(#r-red-active)"/>
+                            <circle cx="100" cy="100" r="87" fill="url(#r-glow)"/>
+                            <rect x="78" y="74" width="44" height="44" rx="9" fill="#ffffff"/>
+                            <text x="100" y="144" text-anchor="middle"
+                                  font-family="-apple-system,Helvetica,sans-serif"
+                                  font-size="19" font-weight="900" letter-spacing="0.12em"
+                                  fill="#ffffff">STOP</text>
+                        </g>
+                        <g class="rec-svg-rim-labels">
+                            <text font-family="-apple-system,Helvetica,sans-serif" font-size="10.5"
+                                  font-weight="700" letter-spacing="0.22em" fill="rgba(255,255,255,0.88)">
+                                <textPath href="#r-arc-top" startOffset="50%" text-anchor="middle">MixPi</textPath>
+                            </text>
+                            <text font-family="-apple-system,Helvetica,sans-serif" font-size="9"
+                                  font-weight="400" letter-spacing="0.16em" fill="rgba(175,178,186,0.72)">
+                                <textPath href="#r-arc-bottom" startOffset="50%" text-anchor="middle">KAMAL DASU</textPath>
+                            </text>
+                        </g>
                     </svg>
-                </button>
-                <button id="btn-stop" class="btn tpt-btn tpt-stop" disabled>
-                    <span class="tpt-sq"></span> STOP
                 </button>
                 <button id="btn-marker" class="btn tpt-btn tpt-mark" disabled>
                     ◈ MARK

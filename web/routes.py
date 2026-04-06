@@ -39,6 +39,33 @@ _playback_total    = 0      # total frames in the file
 _playback_sr       = 48000  # sample rate of the playing file
 
 
+# ---------------------------------------------------------------------------
+# Git-derived build version (cached at import time)
+# ---------------------------------------------------------------------------
+_git_version_cache: dict = {}
+
+def _get_git_version() -> dict:
+    """Return git hash, commit date, and semver from web/__init__.py."""
+    if _git_version_cache:
+        return _git_version_cache
+    from web import __version__ as semver
+    repo = Path(__file__).resolve().parent.parent
+    try:
+        short = subprocess.check_output(
+            ['git', '-C', str(repo), 'rev-parse', '--short=7', 'HEAD'],
+            stderr=subprocess.DEVNULL, text=True, timeout=5
+        ).strip()
+        date = subprocess.check_output(
+            ['git', '-C', str(repo), 'log', '-1', '--format=%cd', '--date=short'],
+            stderr=subprocess.DEVNULL, text=True, timeout=5
+        ).strip()
+    except Exception:
+        short, date = 'dev', ''
+    ver = f"v{semver}-{date} ({short})" if date else f"v{semver} ({short})"
+    _git_version_cache.update({'version': ver, 'hash': short, 'date': date, 'semver': f'v{semver}'})
+    return _git_version_cache
+
+
 def _find_xr18_alsa_device() -> str:
     """
     Return the ALSA device string (e.g. 'hw:3,0') for the XR18.
@@ -337,6 +364,16 @@ def delete_session(session_name):
             'success': False,
             'message': str(e)
         }), 500
+
+
+@api.route('/version', methods=['GET'])
+def get_version():
+    """Return build version derived from the latest git commit."""
+    try:
+        return jsonify(_get_git_version())
+    except Exception as e:
+        logger.error(f"Error getting version: {e}")
+        return jsonify({'version': 'unknown', 'hash': '', 'date': ''})
 
 
 @api.route('/config', methods=['GET'])
