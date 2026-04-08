@@ -16,8 +16,10 @@ const storageTab = {
         
         // Wire up reboot button if not already done
         const rebootBtn = document.getElementById('btn-system-reboot');
-        if (rebootBtn && !this._buttonsWired) {
-            rebootBtn.onclick = () => this.rebootSystem();
+        const exitKioskBtn = document.getElementById('btn-exit-kiosk');
+        if (!this._buttonsWired) {
+            if (rebootBtn) rebootBtn.onclick = () => this.rebootSystem();
+            if (exitKioskBtn) exitKioskBtn.onclick = () => this.exitKiosk();
             this._buttonsWired = true;
         }
 
@@ -47,6 +49,25 @@ const storageTab = {
                 alert("System is rebooting. Please wait 1-2 minutes then refresh.");
             } else {
                 alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Network error: " + e.message);
+        }
+    },
+
+    /** Close kiosk Chromium/Firefox on the Pi so the desktop is visible (localhost / same-host only). */
+    async exitKiosk() {
+        if (!confirm(
+            'Close the fullscreen browser and show the Raspberry Pi desktop?\n\n'
+            + 'MixPi keeps running. Use the desktop or Raspberry Pi Connect to open the browser again, or reboot.'
+        )) return;
+        try {
+            const res = await fetch('/api/system/exit-kiosk', { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+                alert(data.message || 'Kiosk browser closing.');
+            } else {
+                alert(data.message || 'Could not exit kiosk.');
             }
         } catch (e) {
             alert("Network error: " + e.message);

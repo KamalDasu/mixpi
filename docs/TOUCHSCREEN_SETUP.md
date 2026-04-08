@@ -140,6 +140,53 @@ The browser will:
 - ✅ Prevent screen blanking
 - ✅ Auto-reconnect if connection lost
 
+**Show the Raspberry Pi desktop** (exit fullscreen kiosk) — open the **System** tab in MixPi and use **Exit fullscreen browser (show desktop)**. This closes Chromium/Firefox so you can see the taskbar and other apps; the MixPi service keeps running. It only works when the request comes from the Pi’s own browser (including Raspberry Pi Connect), not from a laptop typing the Pi’s URL. To allow the button from any machine on the LAN, set `web.allow_exit_kiosk_from_lan: true` in `config.yaml` (trusted networks only).
+
+### Alternative browser (Firefox) and installed app (PWA)
+
+**Firefox kiosk** — If Chromium misbehaves (keyring, GPU), use Firefox ESR for fullscreen instead:
+
+```bash
+MIXPI_KIOSK_ENGINE=firefox bash /opt/mixpi/scripts/setup-touchscreen-kiosk.sh
+```
+
+Or edit `~/.config/mixpi-kiosk.env`, set `MIXPI_KIOSK_ENGINE=firefox`, then log out and back in.
+
+**Install as an app (PWA)** — MixPi serves `/manifest.json`. In Chromium, open the site, then use **Install MixPi** / **Create shortcut** (wording varies) to run in a **standalone** window without tabs. The MixPi service must still be running on the Pi.
+
+**Electron or other native shells** — Possible but heavy on Raspberry Pi; PWA + kiosk script is the supported approach.
+
+### Keyring prompts (no password / unlock dialog)
+
+MixPi’s kiosk launcher ([`scripts/mixpi-chromium-kiosk.sh`](../scripts/mixpi-chromium-kiosk.sh)) avoids Chromium’s default GNOME Secret Service integration for its own password store:
+
+- **`--password-store=basic`** — plain-text–style internal store (not the login keyring path that often triggers unlock prompts).
+- **`unset` keyring-related env vars** before starting Chromium.
+- On recent Pi OS Chromium (e.g. 146+), **`--password-store=none` is invalid** (“Unknown password store: none”); the launcher uses **`basic`**, not `none`.
+
+**Verify on the Pi** (after [`setup-touchscreen-kiosk.sh`](../scripts/setup-touchscreen-kiosk.sh) or a sync):
+
+```bash
+grep ^Exec= ~/.config/autostart/mixpi-browser.desktop
+# Expect: Exec=/home/<you>/.local/bin/mixpi-chromium-kiosk.sh  (not a long raw chromium … line)
+
+cat ~/.config/mixpi-kiosk.env
+# Expect MIXPI_KIOSK_URL=… and optionally MIXPI_KIOSK_ENGINE=chromium or firefox
+```
+
+Log out and back in (or reboot) so autostart picks up the launcher and env file.
+
+**If a keyring window still appears**, it may be **another** app (NetworkManager, VNC, Raspberry Pi Connect, or Chromium started from a different shortcut). Check the **window title**.
+
+To silence **GNOME “Unlock Login Keyring”** on an **auto-login** kiosk user, set the **Login** keyring password to **empty** (one-time):
+
+1. Open **Passwords and Keys** (Seahorse): run `seahorse` in a terminal or use the desktop menu.
+2. Right-click **Login** (or **default**) → **Change Password** → enter the current password → set the new password to **empty** (press Enter twice) → confirm.
+
+This removes keyring password protection for that user (acceptable on many dedicated Pis; avoid on shared machines).
+
+**Stronger reset (rare):** only if needed, back up first, then remove files under `~/.local/share/keyrings/` and log in again; you will lose stored secrets and may need to recreate keyrings.
+
 ## Mobile View — Optimised for Touchscreens
 
 MixPi has a dedicated **Mobile view** that is ideal for touchscreens. It activates automatically on viewports narrower than 768 px and can also be toggled manually with the **Mobile** button in the header.

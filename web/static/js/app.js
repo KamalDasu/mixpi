@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initElements();
     initBuildVersion();  // fetch git hash and show in panel bar
     initViewToggle();    // mobile/desktop view toggle (must run before initTabs)
+    initPageReload();    // full reload for kiosk / no keyboard
     initTabs();          // wire up bottom-panel tabs
     initDiscovery();     // network discovery panel
     initSystemTab();     // wire up System tab lazy load
@@ -439,6 +440,12 @@ function initTabs() {
     }
 }
 
+function initPageReload() {
+    const btn = document.getElementById('btn-page-reload');
+    if (!btn) return;
+    btn.addEventListener('click', () => window.location.reload());
+}
+
 function initViewToggle() {
     const btn     = document.getElementById('btn-view-toggle');
     const homeEl  = document.getElementById('tab-home');
@@ -578,6 +585,12 @@ function initWebSocket() {
         }
     });
 
+    socket.on('ui_state', (payload) => {
+        if (payload && payload.state) {
+            _applyRemoteUiState(payload.state);
+        }
+    });
+
     socket.on('error', (data) => {
         console.error('Server error:', data.message);
         alert(`Error: ${data.message}`);
@@ -613,7 +626,8 @@ function setupEventListeners() {
         });
     }
 
-    // Session name / notes / track — auto-save as the user types (no Apply needed)
+    // Session name / notes / track — auto-save as the user types (POST /api/ui-state).
+    // Apply is only for quality + storage + channel preset (hardware paths).
     if (elements.inputSessionName) {
         elements.inputSessionName.addEventListener('input', () => {
             _savePrerecordState();
@@ -695,6 +709,84 @@ function _applyChPreset(val) {
 
 /** Apply quality + channel selection and update transport bar summary. */
 const STORAGE_KEY = 'musicpi_prerecord';
+
+/**
+ * Apply shared UI state pushed from the server when another browser/tab edits
+ * fields. Skips inputs that currently have focus so local typing is not overwritten.
+ */
+function _applyRemoteUiState(s) {
+    if (!s || typeof s !== 'object') return;
+    const ae = document.activeElement;
+    let touched = false;
+
+    const setIfBlurred = (el, val) => {
+        if (!el || ae === el) return;
+        const v = val ?? '';
+        if (el.value !== v) {
+            el.value = v;
+            touched = true;
+        }
+    };
+
+    if (elements.inputSessionName) {
+        setIfBlurred(elements.inputSessionName, s.sessionName ? String(s.sessionName) : 'session1');
+    }
+    if (elements.inputNotes) {
+        setIfBlurred(elements.inputNotes, s.notes != null ? String(s.notes) : '');
+    }
+    if (elements.inputTrackName) {
+        setIfBlurred(elements.inputTrackName, s.trackName != null ? String(s.trackName) : '');
+    }
+
+    if (elements.selectChPreset && ae !== elements.selectChPreset && s.chPreset) {
+        const cp = String(s.chPreset);
+        if (elements.selectChPreset.value !== cp) {
+            elements.selectChPreset.value = cp;
+            _applyChPreset(cp);
+            touched = true;
+        }
+    }
+
+    if (elements.selectQuality && ae !== elements.selectQuality && s.quality) {
+        const q = String(s.quality);
+        if ([...elements.selectQuality.options].some(o => o.value === q)
+            && elements.selectQuality.value !== q) {
+            elements.selectQuality.value = q;
+            touched = true;
+        }
+    }
+
+    if (elements.selectStorage && ae !== elements.selectStorage && s.storagePath !== undefined) {
+        const path = String(s.storagePath || '');
+        if (elements.selectStorage.options.length === 0 && path) {
+            loadStorageLocations();
+        } else {
+            const opt = [...elements.selectStorage.options].find(o => o.value === path);
+            if (opt && elements.selectStorage.value !== path) {
+                elements.selectStorage.value = path;
+                touched = true;
+            } else if (path && !opt && elements.selectStorage.options.length > 0) {
+                loadStorageLocations();
+            }
+        }
+    }
+
+    if (touched) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                sessionName : (elements.inputSessionName && elements.inputSessionName.value) || '',
+                notes       : (elements.inputNotes       && elements.inputNotes.value)       || '',
+                trackName   : (elements.inputTrackName   && elements.inputTrackName.value)   || '',
+                chPreset    : (elements.selectChPreset   && elements.selectChPreset.value)   || '',
+                storagePath : (elements.selectStorage    && elements.selectStorage.value)    || '',
+                quality     : (elements.selectQuality    && elements.selectQuality.value)    || '',
+            }));
+        } catch (_e) {}
+        _updateConfirmedDisplay();
+        _updateTrackPlaceholder();
+        _syncApplyButtonState();
+    }
+}
 
 /**
  * Persist ALL pre-record fields to the server (ui_state.json) so every

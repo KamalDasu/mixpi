@@ -21,6 +21,8 @@ audio_engine = None
 storage_manager = None
 metadata_manager = None
 osc_client = None
+# Subset of config['web'] — set in init_routes (e.g. allow_exit_kiosk_from_lan).
+_web_settings: dict = {}
 
 # ---------------------------------------------------------------------------
 # Background bounce (auto-downmix after recording stops)
@@ -129,13 +131,14 @@ for _p in RECORDING_PRESETS:
 # ---------------------------------------------------------------------------
 
 
-def init_routes(engine, storage, metadata, osc=None):
+def init_routes(engine, storage, metadata, osc=None, web_settings=None):
     """Initialize routes with engine, storage, metadata and optional OSC client."""
-    global audio_engine, storage_manager, metadata_manager, osc_client
+    global audio_engine, storage_manager, metadata_manager, osc_client, _web_settings
     audio_engine = engine
     storage_manager = storage
     metadata_manager = metadata
     osc_client = osc
+    _web_settings = dict(web_settings) if web_settings else {}
 
 
 @api.route('/recording/start', methods=['POST'])
@@ -1321,6 +1324,63 @@ def system_reboot():
     return jsonify({'success': True, 'message': 'System rebooting…'})
 
 
+def _exit_kiosk_request_allowed() -> bool:
+    """
+    Closing the kiosk browser must not be callable from arbitrary LAN clients.
+    Allow: loopback, this host's own IPs (kiosk may use http://hostname.local:5000),
+    or everything if web.allow_exit_kiosk_from_lan is true.
+    """
+    if _web_settings.get('allow_exit_kiosk_from_lan'):
+        return True
+    addr = request.remote_addr or ''
+    if addr in ('127.0.0.1', '::1'):
+        return True
+    try:
+        result = subprocess.run(
+            ['hostname', '-I'], capture_output=True, text=True, timeout=3
+        )
+        if result.returncode == 0 and addr in result.stdout.split():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+@api.route('/system/exit-kiosk', methods=['POST'])
+def system_exit_kiosk():
+    """
+    Kill the fullscreen kiosk browser (Chromium/Firefox) so the Raspberry Pi
+    desktop is visible. Intended for the Pi's own browser when the kiosk URL
+    is http://127.0.0.1:5000 or http://localhost:5000.
+
+    Remote clients are rejected unless web.allow_exit_kiosk_from_lan is true in config.
+    """
+    if not _exit_kiosk_request_allowed():
+        return jsonify({
+            'success': False,
+            'message': (
+                'Exit kiosk only works when MixPi is opened on the Pi itself '
+                '(use http://127.0.0.1:5000 in the kiosk URL), or set '
+                'web.allow_exit_kiosk_from_lan: true in config.yaml (trusted networks only).'
+            ),
+        }), 403
+
+    def _kill_kiosk_browsers():
+        time.sleep(0.25)
+        # Process names on Raspberry Pi OS / Debian
+        subprocess.run(
+            ['sudo', 'killall', '-q', 'chromium', 'chromium-browser', 'firefox'],
+            check=False,
+        )
+
+    threading.Thread(target=_kill_kiosk_browsers, daemon=True).start()
+    logger.info('Exit kiosk requested — killall chromium/firefox scheduled')
+    return jsonify({
+        'success': True,
+        'message': 'Closing kiosk browser — desktop should appear shortly.',
+    })
+
+
 # ---------------------------------------------------------------------------
 # Quality presets
 # ---------------------------------------------------------------------------
@@ -1435,6 +1495,14 @@ def save_ui_state():
     data = request.get_json(silent=True) or {}
     try:
         _save_ui_state(data)
+        # Push merged state to every connected client (other tabs / devices).
+        try:
+            import web.websocket as _ws
+
+            if _ws.socketio:
+                _ws.socketio.emit('ui_state', {'state': _load_ui_state()})
+        except Exception:
+            pass
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"UI-state save error: {e}")

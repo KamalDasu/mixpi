@@ -133,7 +133,13 @@ def create_app(config_path='config.yaml'):
     osc_thread.start()
 
     # Initialize routes
-    init_routes(audio_engine, storage_manager, metadata_manager, osc_client)
+    init_routes(
+        audio_engine,
+        storage_manager,
+        metadata_manager,
+        osc_client,
+        web_settings=config.get('web'),
+    )
     app.register_blueprint(api)
 
     # Initialize WebSocket

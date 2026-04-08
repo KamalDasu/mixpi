@@ -24,6 +24,8 @@ web:
   host: "0.0.0.0"       # listen on all interfaces — required for network access from other devices
   port: 5000
   debug: false          # set true only for local development
+  # If true, POST /api/system/exit-kiosk works from any client (trusted LAN only).
+  allow_exit_kiosk_from_lan: false
 
 osc:
   xair_ip: ""               # leave empty for auto-discovery via UDP broadcast (recommended)

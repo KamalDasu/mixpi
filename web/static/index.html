@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260325">
+    <link rel="stylesheet" href="css/style.css?v=20260410">
     <link rel="stylesheet" href="css/touchscreen.css">
 </head>
 <body>
@@ -56,6 +59,7 @@
             <span class="hdr-sep">·</span>
             <span id="connection-status" class="hdr-dot">●</span>
             <span id="connection-text" class="hdr-conn">Connecting…</span>
+            <button type="button" id="btn-page-reload" class="hdr-view-btn hdr-reload-btn" title="Reload page">↻</button>
             <button id="btn-view-toggle" class="hdr-view-btn" title="Switch to mobile view">Mobile</button>
         </div>
     </header>
@@ -453,6 +457,12 @@
                     <div class="system-col">
                         <h3 class="system-section-title">⚙️ Service</h3>
                         <div class="system-service-card">
+                            <p class="system-service-hint">
+                                <strong>Exit fullscreen browser</strong> closes the kiosk window so you can use the
+                                Raspberry Pi desktop (taskbar, files, Raspberry Pi Connect). MixPi keeps running in the background.
+                                Restart the browser from the desktop menu or after reboot.
+                            </p>
+                            <button type="button" id="btn-exit-kiosk" class="btn btn-outline-accent">Exit fullscreen browser (show desktop)</button>
                             <button id="btn-system-reboot" class="btn btn-outline-danger">Reboot Raspberry Pi</button>
                         </div>
                     </div>
