@@ -196,7 +196,7 @@ Mobile view features:
 - **Tap anywhere on a tile** to arm or disarm a channel (no small REC button to hit)
 - **Red top bar wiggles** on an armed tile when audio signal is detected
 - **Tabs at the top** (not bottom) — Home | Recordings | Markers | Storage
-- **Compact pre-record grid** — Quality, Channels, Storage, Session, Notes, Song in a 2×3 grid
+- **Recording setup on the Recordings tab** — REC QUALITY, CHANNELS, STORAGE, SESSION, NOTES, SONG, and **Apply** (Home is transport + meters only)
 - **Minimal discovery bar** — mixer name + channel count, Scan, and Restart only
 - **Pi hostname in the header** instead of verbose disk space info
 

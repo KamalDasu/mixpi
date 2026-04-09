@@ -356,6 +356,23 @@ body {
 /* Hide the zero-width visual dividers — grid handles spacing */
 .prerecord-div { display: none; }
 
+/* Left stack: REC QUALITY, CHANNELS, STORAGE (desktop); mobile nodes move via JS */
+.prerecord-sidebar {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    display: grid;
+    grid-template-rows: auto auto auto;
+    min-width: 0;
+    align-content: stretch;
+}
+.prerecord-sidebar > .prerecord-col {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.prerecord-sidebar > .prerecord-col:last-child {
+    border-bottom: none;
+}
+
 .prerecord-col {
     display: flex;
     flex-direction: column;
@@ -364,23 +381,6 @@ body {
     padding: 6px 14px;
 }
 
-/* Quality → col 1, row 1 */
-.prerecord-row > :nth-child(1) {
-    grid-column: 1; grid-row: 1;
-    border-right: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-}
-/* Channels → col 1, row 2  (nth-child(3) because divider is child 2) */
-.prerecord-row > :nth-child(3) {
-    grid-column: 1; grid-row: 2;
-    border-right: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-}
-/* Storage → col 1, row 3  (nth-child(4)) */
-.prerecord-row > :nth-child(4) {
-    grid-column: 1; grid-row: 3;
-    border-right: 1px solid var(--border);
-}
 /* Session + Notes + Song + Apply → col 2, spans 3 rows (matches left col height) */
 .prerecord-col--session {
     grid-column: 2; grid-row: 1 / 4;
@@ -1325,10 +1325,21 @@ body {
     text-align: right;
 }
 
-/* ── Files tab ──────────────────────────────────────────────────────────── */
+/* ── Files tab — full prerecord grid lives here (REC tab) ───────────────── */
+.files-recording-setup {
+    flex-shrink: 0;
+    margin: -18px -20px 0 -20px;
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+}
+.files-recording-setup .prerecord-row {
+    border-bottom: none;
+}
+
 .files-header {
     display: flex;
     justify-content: flex-end;
+    margin-top: 14px;
     margin-bottom: 12px;
 }
 #btn-refresh-sessions {
@@ -1350,6 +1361,12 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+/* Let the session list scroll inside the Recordings tab when setup is tall */
+#tab-files.tab-pane.active .sessions-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 /* ── Show group (collapsible) ────────────────────────────────────── */
@@ -2671,11 +2688,14 @@ body {
 /* Compact scan/restart buttons */
 .mobile-view .disc-scan-btn { padding: 0 8px; font-size: 0.65rem; height: 24px; }
 
-/* ── Pre-record: compact padding in mobile (grid layout is in base CSS) ───── */
-.mobile-view .prerecord-row > :nth-child(1),
-.mobile-view .prerecord-row > :nth-child(3),
-.mobile-view .prerecord-row > :nth-child(4) { padding: 5px 10px; }
-.mobile-view .prerecord-col--session { padding: 6px 10px; }
+/* Mobile: tighter labels in Recordings prerecord block */
+.mobile-view .files-recording-setup .prerecord-col--session .prerecord-label {
+    font-size: 0.62rem;
+}
+.mobile-view .files-recording-setup .prerecord-col--session .prerecord-select,
+.mobile-view .files-recording-setup .prerecord-col--session .prerecord-input {
+    font-size: 0.78rem;
+}
 
 /* ── Transport: hide confirmed session/config line ───────────────────────── */
 /* ── Transport: stack timer below buttons in mobile ──────────────────────── */

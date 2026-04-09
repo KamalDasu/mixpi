@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260410">
+    <link rel="stylesheet" href="css/style.css?v=20260412">
     <link rel="stylesheet" href="css/touchscreen.css">
 </head>
 <body>
@@ -159,68 +159,6 @@
 
     <!-- ── Home tab content — starts active; JS manages tab switching ────── -->
     <div id="tab-home" class="active">
-
-    <!-- ── Pre-record config row ────────────────────────────────────────── -->
-    <div class="prerecord-row">
-
-        <!-- Col 1: Quality dropdown -->
-        <div class="prerecord-col prerecord-col--select">
-            <span class="prerecord-label">REC QUALITY</span>
-            <select id="select-quality" class="prerecord-select">
-                <option value="">Loading…</option>
-            </select>
-        </div>
-
-        <div class="prerecord-div"></div>
-
-        <!-- Col 2: Channel preset dropdown -->
-        <div class="prerecord-col prerecord-col--select">
-            <span class="prerecord-label">CHANNELS</span>
-            <select id="select-ch-preset" class="prerecord-select">
-                <option value="all">All 18 CH</option>
-                <option value="2ch">2 CH — Ch 1-2 (Stereo)</option>
-                <option value="16ch">16 CH — Ch 1-16</option>
-                <option value="mainlr">Main LR — Ch 17-18</option>
-                <option value="custom">Custom (use REC buttons)</option>
-            </select>
-        </div>
-
-        <!-- Col 3: Storage destination -->
-        <div class="prerecord-col prerecord-col--select">
-            <div class="prerecord-label-row">
-                <span class="prerecord-label">STORAGE</span>
-                <button id="btn-refresh-storage" class="prerecord-refresh-btn" title="Rescan storage devices">↺</button>
-            </div>
-            <select id="select-storage" class="prerecord-select">
-                <option value="">Detecting…</option>
-            </select>
-        </div>
-
-        <div class="prerecord-div"></div>
-
-        <!-- Col 2: Session name + Notes + Track/Song + Apply -->
-        <div class="prerecord-col prerecord-col--session">
-            <div class="prerecord-field">
-                <span class="prerecord-label">SESSION</span>
-                <input id="input-session-name" class="prerecord-input"
-                       placeholder="session1" autocomplete="off" spellcheck="false">
-            </div>
-            <div class="prerecord-field">
-                <span class="prerecord-label">NOTES</span>
-                <input id="input-notes" class="prerecord-input prerecord-input--dim"
-                       placeholder="Notes…" autocomplete="off" spellcheck="false">
-            </div>
-            <div class="prerecord-field">
-                <span class="prerecord-label">SONG</span>
-                <input id="input-track-name" class="prerecord-input prerecord-input--track"
-                       placeholder="song1" autocomplete="off" spellcheck="false"
-                       title="Song / take name — used as the recording folder prefix. Leave blank for auto-numbering.">
-            </div>
-            <!-- Apply sits at the bottom of this column, level with Storage on the left -->
-            <button id="btn-apply-config" class="prerecord-apply" title="Apply recording quality, channel &amp; storage selection">Apply</button>
-        </div>
-
-    </div>
 
     <!-- ── Transport bar ────────────────────────────────────────────────── -->
     <nav class="console-transport">
@@ -376,8 +314,64 @@
     <!-- ── Bottom panel content (tabbed) ───────────────────────────────── -->
     <div class="panel-content">
 
-            <!-- FILES TAB ───────────────────────────────────────────────── -->
+            <!-- FILES TAB — recording setup + session list ─────────────────── -->
             <div id="tab-files" class="tab-pane active">
+                <div class="files-recording-setup">
+    <div class="prerecord-row">
+
+        <div id="prerecord-sidebar" class="prerecord-sidebar">
+        <div id="prerecord-quality-block" class="prerecord-col prerecord-col--select">
+            <span class="prerecord-label">REC QUALITY</span>
+            <select id="select-quality" class="prerecord-select">
+                <option value="">Loading…</option>
+            </select>
+        </div>
+
+        <div id="prerecord-channels-block" class="prerecord-col prerecord-col--select">
+            <span class="prerecord-label">CHANNELS</span>
+            <select id="select-ch-preset" class="prerecord-select">
+                <option value="all">All 18 CH</option>
+                <option value="2ch">2 CH — Ch 1-2 (Stereo)</option>
+                <option value="16ch">16 CH — Ch 1-16</option>
+                <option value="mainlr">Main LR — Ch 17-18</option>
+                <option value="custom">Custom (use REC buttons)</option>
+            </select>
+        </div>
+
+        <div id="prerecord-storage-block" class="prerecord-col prerecord-col--select">
+            <div class="prerecord-label-row">
+                <span class="prerecord-label">STORAGE</span>
+                <button id="btn-refresh-storage" class="prerecord-refresh-btn" title="Rescan storage devices">↺</button>
+            </div>
+            <select id="select-storage" class="prerecord-select">
+                <option value="">Detecting…</option>
+            </select>
+        </div>
+        </div><!-- /prerecord-sidebar -->
+
+        <div class="prerecord-col prerecord-col--session">
+            <div class="prerecord-field">
+                <span class="prerecord-label">SESSION</span>
+                <input id="input-session-name" class="prerecord-input"
+                       placeholder="session1" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="prerecord-field">
+                <span class="prerecord-label">NOTES</span>
+                <input id="input-notes" class="prerecord-input prerecord-input--dim"
+                       placeholder="Notes…" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="prerecord-field">
+                <span class="prerecord-label">SONG</span>
+                <input id="input-track-name" class="prerecord-input prerecord-input--track"
+                       placeholder="song1" autocomplete="off" spellcheck="false"
+                       title="Song / take name — used as the recording folder prefix. Leave blank for auto-numbering.">
+            </div>
+            <button id="btn-apply-config" class="prerecord-apply" title="Apply recording quality, channel &amp; storage selection">Apply</button>
+        </div>
+
+    </div>
+                </div><!-- /.files-recording-setup -->
+
                 <div class="files-header">
                     <button id="btn-refresh-sessions" class="btn btn-small">Refresh</button>
                 </div>
