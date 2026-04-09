@@ -38,7 +38,7 @@
     /* Layout */
     --header-h:     44px;
     --transport-h:  56px;
-    --scale-w:      30px;
+    --scale-w:      22px;
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */
@@ -73,12 +73,13 @@ body {
     display: flex;
     align-items: center;
     gap: 0;
-    height: 36px;
+    min-height: 40px;
+    height: auto;
     background: #0c0c0c;
     border-bottom: 1px solid var(--border);
     padding: 0 14px;
     flex-shrink: 0;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     letter-spacing: 0.04em;
     overflow: hidden;
 }
@@ -95,6 +96,12 @@ body {
     height: 16px;
     background: #222;
     flex-shrink: 0;
+}
+
+/* PI hostname is shown in the header on desktop — hide duplicate discovery item */
+body:not(.mobile-view) #disc-pi,
+body:not(.mobile-view) #disc-pi + .disc-sep {
+    display: none;
 }
 
 .disc-dot {
@@ -155,32 +162,54 @@ body {
     flex-shrink: 0;
 }
 
-/* Actions group — pushed to right */
-.disc-actions {
-    margin-left: auto;
+/* Status row + inline ↻ (scan / restart) */
+.disc-item-group {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
-.disc-scan-btn {
+.disc-action-btn {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    font-size: 1rem;
+    line-height: 1;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.disc-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.disc-action-btn--scan {
     background: rgba(138,180,248,0.06);
     border: 1px solid #3a5070;
-    border-radius: 5px;
     color: #8ab4f8;
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 5px 14px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-    white-space: nowrap;
-    letter-spacing: 0.05em;
 }
-.disc-scan-btn:hover { color: #fff; border-color: #8ab4f8; background: rgba(138,180,248,0.16); }
-.disc-scan-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.disc-restart-btn { color: #e57373; border-color: #7a3535; background: rgba(229,115,115,0.06); }
-.disc-restart-btn:hover { color: #fff; background: rgba(229,115,115,0.2); border-color: #e57373; }
+.disc-action-btn--scan:hover:not(:disabled) {
+    color: #fff;
+    border-color: #8ab4f8;
+    background: rgba(138,180,248,0.16);
+}
+
+.disc-action-btn--restart {
+    color: #e57373;
+    border: 1px solid #7a3535;
+    background: rgba(229,115,115,0.06);
+}
+.disc-action-btn--restart:hover:not(:disabled) {
+    color: #fff;
+    background: rgba(229,115,115,0.2);
+    border-color: #e57373;
+}
 
 /* ── Header bar ─────────────────────────────────────────────────────────── */
 /* ── HTTPS setup banner ─────────────────────────────────────────────────── */
@@ -274,14 +303,14 @@ body {
 }
 
 .hdr-title {
-    font-size: 0.85rem;
+    font-size: 1.0625rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #ffffff;
 }
 .hdr-build {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     color: var(--text-dim);
     letter-spacing: 0.03em;
     opacity: 0.6;
@@ -305,17 +334,27 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 200px;
+    min-width: 120px;
     justify-content: flex-end;
-    font-size: 0.78rem;
+    font-size: 0.975rem;
 }
 
-.hdr-disk  { color: #c0c0c0; }
 .hdr-sep   { color: #555; }
-.hdr-dot   { font-size: 0.7rem; color: #555; transition: color 0.3s; }
+.hdr-dot   { font-size: 0.875rem; color: #555; transition: color 0.3s; }
 .hdr-dot.connected    { color: var(--accent); }
 .hdr-dot.disconnected { color: var(--record-color); }
-.hdr-conn  { color: #c0c0c0; }
+.hdr-conn  { color: #a0a0a0; font-size: 0.85rem; margin-left: 6px; }
+#connection-text:empty { display: none; }
+.hdr-pi-name {
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+    color: #c8c8c8;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 6px;
+}
 
 /* View toggle button */
 .hdr-view-btn {
@@ -324,7 +363,7 @@ body {
     color: #666;
     border-radius: 4px;
     padding: 3px 9px;
-    font-size: 0.64rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -339,7 +378,7 @@ body {
 .hdr-reload-btn {
     min-width: 32px;
     padding: 3px 8px;
-    font-size: 1rem;
+    font-size: 1.25rem;
     line-height: 1;
 }
 
@@ -535,27 +574,31 @@ body {
     opacity: 1 !important;
 }
 
-/* ── Transport bar ──────────────────────────────────────────────────────── */
-.console-transport {
-    height: auto;
-    min-height: var(--transport-h);
-    background: var(--bg-transport);
-    border-bottom: 1px solid var(--border);
+/* ── Transport controls (embedded in .ch-strip-header) ──────────────────── */
+.ch-strip-header__transport {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
-    gap: 0;
-    padding: 6px 12px;
     flex-shrink: 0;
+    flex: 0 1 auto;
+    gap: 2px;
+    min-width: 0;
 }
 
-/* Outer wrapper — buttons + timer in one horizontal row */
+/* Outer wrapper — button group + timer column */
 .tpt-buttons {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 0;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+}
+
+.ch-strip-header .tpt-buttons {
+    flex: 0 1 auto;
+    justify-content: flex-start;
 }
 
 /* The actual button row */
@@ -565,19 +608,48 @@ body {
     gap: 6px;
 }
 
-/* Timer + status — sits directly to the right of MARK */
+/* Timer + READY + disk line — column to the right of MARK */
+.tpt-timer-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+    padding-left: 14px;
+    margin-left: 10px;
+    border-left: 1px solid var(--border);
+    min-height: 48px;
+}
+
+.ch-strip-header .tpt-timer-stack {
+    min-height: 0;
+    padding-left: 8px;
+    margin-left: 6px;
+    gap: 2px;
+    min-width: 0;
+    flex: 0 1 auto;
+    justify-content: flex-start;
+}
+
 .tpt-timer-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-left: 14px;
-    margin-left: 10px;
-    border-left: 1px solid var(--border);
+    padding-left: 0;
+    margin-left: 0;
+    border-left: none;
+}
+
+.tpt-disk-in-transport {
+    font-size: 0.85rem;
+    color: #a8a8a8;
+    line-height: 1.25;
+    max-width: 240px;
 }
 
 .tpt-timer {
     font-family: 'Courier New', monospace;
-    font-size: 1rem;
+    font-size: 1.25rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     color: #ffffff;
@@ -586,7 +658,7 @@ body {
 }
 
 .tpt-status-pill {
-    font-size: 0.65rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -611,39 +683,126 @@ body {
     50% { opacity: 0.6; }
 }
 
-/* ── Timeline ruler panel ───────────────────────────────────────────────── */
+/* ── Meter sine strip + recording waveform ─────────────────────────────── */
 .timeline-panel {
-    background: #0d0d0d;
+    background: #080808;
     border-top: 1px solid #1a1a1a;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     padding: 0;
     overflow: hidden;
-    height: 56px;
+    height: auto;
+    min-height: 16px;
+}
+
+.tpt-meter-sine {
+    display: block;
+    width: 100%;
+    height: 16px;
+    vertical-align: top;
 }
 
 .tpt-timeline {
-    display: block;
+    display: none;
     width: 100%;
     height: 34px;
 }
 
-/* Confirmed session/config display — now lives in the ch-strip-header bar */
+.timeline-panel.timeline-panel--recording {
+    border-bottom: 1px solid var(--border);
+}
+
+.timeline-panel.timeline-panel--recording .tpt-timeline {
+    display: block;
+}
+
+/* Mobile-only: ↻ at far right of .tpt-buttons row (desktop: MIXER box ↻) */
+.ch-strip-header__refresh--transport-end {
+    display: none !important;
+    margin-left: auto;
+    align-self: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    font-size: 1.05rem;
+}
+
+.mobile-view .ch-strip-header__refresh--transport-end {
+    display: inline-flex !important;
+    align-self: flex-end;
+    margin-bottom: 2px;
+}
+
+/* Confirmed session/config — lives in .tpt-session-refresh-row */
 .tpt-confirmed {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    padding: 0 12px;
+    padding: 0;
     min-width: 0;
     overflow: hidden;
+    width: 100%;
+}
+
+.tpt-session-refresh-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    padding: 4px 0 2px;
+    margin-top: 4px;
+    border-top: none;
+    flex-wrap: wrap;
+    row-gap: 2px;
+    box-sizing: border-box;
+}
+
+.tpt-session-refresh-row .tpt-confirmed {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    flex-wrap: wrap;
+    row-gap: 2px;
+}
+
+/* Take / song name — below session + quality line (idle: next take; recording: live folder name) */
+.tpt-current-take {
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-family: monospace;
+    color: #7eb87a;
+    letter-spacing: 0.05em;
+    padding: 5px 0 0;
+    margin: 0;
+    line-height: 1.25;
+    min-height: 1.25em;
+    width: 100%;
+    box-sizing: border-box;
+}
+.tpt-current-take--live {
+    color: #ffab91;
+    text-shadow: 0 0 12px rgba(255, 87, 34, 0.35);
+}
+
+/* Desktop: ↻ sits with MIXER (right cluster); mobile: ↻ in .timeline-panel */
+.mobile-view .ch-strip-header__refresh--mixer-corner {
+    display: none !important;
 }
 
 .tpt-confirmed-name {
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-family: monospace;
     color: #cccccc;
+    letter-spacing: 0.05em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -659,7 +818,8 @@ body {
 }
 
 .tpt-confirmed-config {
-    font-size: 0.68rem;
+    font-size: 0.85rem;
+    font-weight: 400;
     font-family: monospace;
     color: #5dde65;
     letter-spacing: 0.05em;
@@ -733,10 +893,10 @@ body {
     box-shadow: none;
     border-radius: 50%;
     padding: 0;
-    width: 108px;
-    height: 108px;
+    width: 135px;
+    height: 135px;
     min-width: unset;
-    max-width: 108px;
+    max-width: 135px;
     flex-shrink: 0;
     justify-content: center;
 }
@@ -814,45 +974,137 @@ body {
 /* ── Channel strip header bar ───────────────────────────────────────────── */
 .ch-strip-header {
     display: flex;
-    align-items: center;
-    gap: 7px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0;
+    row-gap: 6px;
+    column-gap: 16px;
     padding: 5px 14px;
     background: var(--bg-console);
     border-bottom: 1px solid var(--border);
     border-top: 1px solid var(--border);
     flex-shrink: 0;
 }
+
+.ch-strip-header .tpt-rec {
+    width: 220px;
+    height: 220px;
+    max-width: 220px;
+}
+.ch-strip-header .tpt-mark {
+    height: 52px;
+    min-height: 52px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+}
+.ch-strip-header .tpt-timer {
+    font-size: 1.025rem;
+    min-width: 72px;
+}
+.ch-strip-header .tpt-status-pill {
+    font-size: 0.6875rem;
+    padding: 2px 8px;
+}
+.ch-strip-header .tpt-disk-in-transport {
+    font-size: 0.725rem;
+    max-width: 240px;
+    line-height: 1.2;
+}
 .ch-strip-header__usb-icon {
     color: #8ab4f8;
     flex-shrink: 0;
     opacity: 0.85;
+    width: 22px;
+    height: 22px;
+}
+.ch-strip-header__mixer-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    flex-shrink: 0;
+    margin-right: 4px;
+    padding: 6px 12px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.35);
+    min-width: 0;
+    max-width: min(100%, 420px);
+}
+
+/* USB + MIXER only (session + ↻ live in .tpt-timer-stack under disk) */
+.ch-strip-header__mixer-col--in-transport {
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding: 4px 10px 6px;
+    max-width: min(100%, 360px);
+    align-self: flex-end;
+}
+.ch-strip-header__mixer-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.ch-strip-header__mixer-row .ch-strip-header__refresh--mixer-corner {
+    margin-left: auto;
 }
 .ch-strip-header__label {
-    font-size: 0.65rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     color: #8ab4f8;
 }
 .ch-strip-header__sep {
     color: #333;
-    font-size: 0.65rem;
+    font-size: 0.8125rem;
 }
 .ch-strip-header__sub {
-    font-size: 0.62rem;
+    font-size: 0.775rem;
     letter-spacing: 0.12em;
     color: #555;
     text-transform: uppercase;
 }
-.ch-strip-header__actions {
-    margin-left: auto;
-    display: flex;
+.ch-strip-header__refresh {
+    flex-shrink: 0;
+    margin-left: 6px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    border: 1px solid #3a5070;
+    border-radius: 5px;
+    background: rgba(138,180,248,0.08);
+    color: #8ab4f8;
+    font-size: 1.05rem;
+    line-height: 1;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ch-strip-header__refresh:hover:not(:disabled) {
+    color: #fff;
+    border-color: #8ab4f8;
+    background: rgba(138,180,248,0.18);
+}
+.ch-strip-header__refresh:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .channel-console {
     display: flex;
     flex-direction: row;
+    justify-content: center;
     background: var(--bg-console);
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
@@ -868,42 +1120,47 @@ body {
     justify-content: space-between;
     align-items: flex-end;
     width: var(--scale-w);
-    padding: 48px 4px 48px;
+    padding: calc(48px * 1.1) 2px calc(48px * 1.1);
     flex-shrink: 0;
     background: var(--bg-console);
     border-right: 1px solid var(--border);
 }
 
 .ch-scale span {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-family: monospace;
     color: #999;
     line-height: 1;
 }
 
-/* Strip container */
+/* Strip container — narrow columns + line meters so 18ch fits on small landscape panels */
 .ch-strips {
     display: flex;
     flex-direction: row;
+    flex-wrap: nowrap;
     gap: 0;
-    padding: 10px 6px 6px;
-    flex: 1;          /* fill width left over after the dB scale */
+    padding: 6px 2px 5px;
+    flex: 0 1 auto;   /* natural width; .channel-console centers scale + strips */
     min-width: 0;
+    justify-content: flex-start;
 }
 
-/* Individual channel strip */
+/* Individual channel strip — column width + container for fluid .ch-name sizing */
 .ch-strip {
     display: flex;
     flex-direction: column;
     align-items: center;
-    flex: 1;
-    min-width: 44px;   /* prevent strips from collapsing too narrow */
-    max-width: 80px;   /* cap on very wide screens so they don't stretch oddly */
-    gap: 4px;
-    padding: 4px 3px 6px;
+    flex: 0 0 43px;
+    width: 43px;
+    min-width: 38px;
+    max-width: 48px;
+    gap: 2px;
+    padding: 2px 1px 4px;
     border-right: 1px solid var(--border);
     transition: background 0.15s;
     position: relative;
+    container-type: inline-size;
+    container-name: chstrip;
 }
 
 .ch-strip:first-child  { border-left: 1px solid var(--border); }
@@ -938,34 +1195,42 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9rem;
+    font-size: 0.5rem;
     font-weight: 800;
     color: var(--record-color);
     background: rgba(244,67,54,0.12);
+    letter-spacing: -0.06em;
 }
 
 /* Channel number */
 .ch-num {
-    font-size: 0.57rem;
+    font-size: 0.62rem;
     color: #5dde65;
     font-family: monospace;
     line-height: 1;
     text-shadow: 0 1px 2px rgba(0,0,0,0.9);
 }
 
-/* Channel name */
+/* Channel name — fluid size on supporting engines; rem fallback for older touch browsers */
 .ch-name {
     font-size: 0.72rem;
     font-weight: 700;
     color: #ffffff;
     text-align: center;
     width: 100%;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 2px;
-    line-height: 1.2;
+    padding: 0 1px;
+    line-height: 1.15;
     text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+@supports (font-size: 1cqi) {
+    .ch-name {
+        font-size: clamp(0.56rem, 28cqi, 0.88rem);
+    }
 }
 
 /* OSC status badges */
@@ -977,15 +1242,16 @@ body {
     min-height: 12px;
 }
 
-/* VU meter bar */
+/* VU meter — thin vertical line (fill is still a bar graph inside the line) */
 .ch-meter-bar {
-    width: 24px;
-    height: 90px;
+    width: 6px;
+    height: calc(90px * 1.1);
     background: var(--meter-bg);
-    border-radius: 2px;
+    border-radius: 3px;
     position: relative;
     overflow: hidden;
-    border: 1px solid #1a1a1a;
+    border: none;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.75);
     flex-shrink: 0;
 }
 
@@ -1007,22 +1273,30 @@ body {
 
 .ch-meter-peak {
     position: absolute;
-    left: 0; right: 0;
+    left: 0;
+    right: 0;
     height: 2px;
-    background: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.9);
     bottom: 0%;
     transition: bottom 0.1s;
-    box-shadow: 0 0 3px rgba(255,255,255,0.4);
+    box-shadow: 0 0 2px rgba(255,255,255,0.5);
+    border-radius: 1px;
 }
 
 /* dB readout */
 .ch-db-val {
-    font-size: 0.62rem;
+    font-size: 0.65rem;
     font-family: 'SF Mono', 'Consolas', monospace;
     color: #bbb;
     text-align: center;
     line-height: 1;
     letter-spacing: -0.02em;
+}
+
+@supports (font-size: 1cqi) {
+    .ch-num {
+        font-size: clamp(0.55rem, 15cqi, 0.72rem);
+    }
 }
 
 /* ARM / REC button — red circle dot */
@@ -1059,7 +1333,7 @@ body {
 
 /* Badges on channel strips */
 .badge {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     padding: 1px 3px;
     border-radius: 2px;
@@ -1108,8 +1382,8 @@ body {
     align-items: center;
     justify-content: center;
     padding: 0 22px;
-    height: 38px;
-    font-size: 0.74rem;
+    height: 42px;
+    font-size: 0.925rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -2609,7 +2883,7 @@ body {
 /* Uniform compact tab sizing */
 .mobile-view .panel-tab {
     padding: 0 14px;
-    font-size: 0.68rem;
+    font-size: 0.85rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2638,22 +2912,22 @@ body {
     border-color: var(--accent);
 }
 
-/* ── Header: show PI hostname, hide disk space / connection text ─────────── */
-.mobile-view .hdr-disk,
+/* ── Header: hide connection verbose text on mobile ──────────────────────── */
 .mobile-view .hdr-sep,
 .mobile-view #connection-text { display: none; }
 
-/* PI hostname pill shown only in mobile */
-.hdr-pi-name { display: none; }
 .mobile-view .hdr-pi-name {
-    display: inline;
-    font-size: 0.72rem;
-    color: #c0c0c0;
-    font-family: monospace;
+    font-size: 0.8125rem;
+    max-width: 120px;
+}
+
+.mobile-view .tpt-disk-in-transport {
+    font-size: 0.775rem;
+    max-width: 200px;
 }
 
 /* ── Discovery bar: minimal — MIXER + USB + Scan + Restart only ──────────── */
-.mobile-view .discovery-bar { height: 32px; padding: 0 8px; }
+.mobile-view .discovery-bar { min-height: 36px; height: auto; padding: 4px 8px; }
 .mobile-view .disc-item { padding: 0 6px; gap: 4px; }
 .mobile-view .disc-sep  { height: 12px; }
 /* Hide all green labels */
@@ -2679,14 +2953,14 @@ body {
 .mobile-view .disc-item:has(#disc-osc-dot) + .disc-sep { display: none; }
 /* Truncate long values */
 .mobile-view .disc-val {
-    font-size: 0.68rem;
+    font-size: 0.85rem;
     max-width: 80px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 /* Compact scan/restart buttons */
-.mobile-view .disc-scan-btn { padding: 0 8px; font-size: 0.65rem; height: 24px; }
+.mobile-view .disc-action-btn { width: 34px; height: 34px; font-size: 1.05rem; }
 
 /* Mobile: tighter labels in Recordings prerecord block */
 .mobile-view .files-recording-setup .prerecord-col--session .prerecord-label {
@@ -2697,23 +2971,127 @@ body {
     font-size: 0.78rem;
 }
 
-/* ── Transport: hide confirmed session/config line ───────────────────────── */
-/* ── Transport: stack timer below buttons in mobile ──────────────────────── */
-.mobile-view .tpt-buttons {
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
+/* Mobile: session+↻ under disk; hide MIXER; transport left-aligned */
+.mobile-view .ch-strip-header {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    overflow-x: visible;
 }
+
+.mobile-view .ch-strip-header__transport {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 0;
+    margin: 0;
+}
+
+.mobile-view .ch-strip-header__mixer-col,
+.mobile-view .ch-strip-header__mixer-col--in-transport {
+    display: none !important;
+}
+
+.mobile-view .tpt-timer-stack {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+    align-items: stretch;
+    min-height: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.mobile-view .tpt-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Override touchscreen.css `.ch-strip-header .tpt-buttons { justify-content: center }` */
+.mobile-view .ch-strip-header .tpt-buttons {
+    justify-content: flex-start;
+}
+
 .mobile-view .tpt-timer-row {
     border-left: none;
     padding-left: 0;
-    margin-left: 2px;
+    margin-left: 0;
+    justify-content: flex-start;
+    width: 100%;
+    align-self: stretch;
 }
 
-.mobile-view .tpt-confirmed { display: none; }
+.mobile-view .tpt-disk-in-transport {
+    text-align: left;
+    align-self: stretch;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+}
 
-/* ── Channel strip header: hide Peaks reset button ───────────────────────── */
-.mobile-view #btn-reset-peaks { display: none; }
+.mobile-view .tpt-timer-stack .tpt-session-refresh-row {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    margin-top: 4px;
+    padding: 0;
+    border-top: none;
+    align-items: center;
+    justify-content: flex-start;
+    align-self: stretch;
+    box-sizing: border-box;
+}
+
+.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    min-width: 0;
+    max-width: none;
+}
+
+.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-name,
+.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-config {
+    font-size: 0.78rem;
+    font-weight: 400;
+    font-family: monospace;
+    letter-spacing: 0.05em;
+    white-space: normal;
+    word-break: break-word;
+    text-align: left;
+}
+
+.mobile-view .tpt-current-take {
+    text-align: left;
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    padding-top: 6px;
+    font-size: 0.78rem;
+    font-weight: 400;
+    font-family: monospace;
+    letter-spacing: 0.05em;
+}
+
+.mobile-view .ch-strip-header .tpt-rec {
+    width: 156px;
+    height: 156px;
+    max-width: 156px;
+}
+
+.mobile-view #btn-marker {
+    display: none !important;
+}
 
 /* ── Channel console: 6×3 compact tile grid ─────────────────────────────── */
 /* ── Home tab: fill remaining space and scroll if content is taller than screen */
@@ -2729,22 +3107,33 @@ body {
 
 .mobile-view .ch-scale { display: none; }
 .mobile-view .ch-strip-header { padding: 4px 10px; }
-.mobile-view .channel-console { overflow-x: hidden; }
+.mobile-view .channel-console {
+    overflow-x: hidden;
+    width: 90%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
 .mobile-view .ch-strips {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 3px;
-    padding: 6px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    padding: calc(6px * 1.1) calc(4px * 1.1);
     min-width: 0;
     width: 100%;
+    justify-content: stretch;
+    box-sizing: border-box;
 }
 .mobile-view .ch-strip {
     width: auto;
+    min-width: 0;
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 5px 3px;
-    gap: 4px;
+    padding: calc(5px * 1.1) calc(3px * 1.1);
+    gap: calc(4px * 1.1);
     align-items: center;
+    /* No container-type here: cqi + min-width:0 caused missing labels on some touch/Chromium builds */
 }
 /* Reset desktop left-border-only rule — tile grid manages all borders */
 .mobile-view .ch-strip:first-child { border-left: 1px solid var(--border); }
@@ -2763,11 +3152,14 @@ body {
 .mobile-view .ch-strip--muted { opacity: 0.4; }
 .mobile-view .ch-strip--muted::after { display: none; }
 
-/* Compact channel name */
+/* Tile name: fixed rem so labels always paint on Pi / older WebKit (avoid cqi here) */
 .mobile-view .ch-name {
-    font-size: 0.6rem;
+    font-size: 0.68rem;
     text-align: center;
     text-overflow: clip;   /* marquee handles long names — no ellipsis */
+    overflow: visible;
+    min-height: 1.1em;
+    color: #ffffff;
 }
 
 /* Long names: left-align and scroll back and forth */
@@ -2781,14 +3173,17 @@ body {
     80%, 100% { transform: translateX(var(--scroll-px, 0px)); }
 }
 
-.mobile-view .ch-num  { font-size: 0.55rem; }
+.mobile-view .ch-num {
+    font-size: 0.58rem;
+    flex-shrink: 0;
+}
 
 /* ── Arm button: hidden in tile mode — red top bar is the only indicator ──── */
 .mobile-view .ch-arm-btn { display: none; }
 
 /* ── Armed top bar: thicker and glows; wiggles when signal is detected ────── */
 .mobile-view .ch-strip.ch-strip--armed::before {
-    height: 3px;
+    height: calc(3px * 1.1);
     background: var(--record-color);
     box-shadow: 0 1px 5px rgba(244,67,54,0.5);
     transition: none;

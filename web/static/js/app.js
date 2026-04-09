@@ -12,7 +12,6 @@ let meters;
 const elements = {
     btnRecord: null,
     btnMarker: null,
-    btnResetPeaks: null,
     connectionStatus: null,
     connectionText: null,
     recordingTime: null,
@@ -53,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Build version badge ──────────────────────────────────────────────────────
 function initBuildVersion() {
-    fetch('/api/version')
+    fetch('/api/version', { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
             const el = document.getElementById('build-version');
@@ -165,7 +164,7 @@ const discovery = {
             if (val)  val.textContent = 'Searching…';
             if (icon) icon.innerHTML = '';
         }
-        if (btn) { btn.disabled = true; btn.textContent = '⟳ Scanning…'; }
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
         try {
             const res = await fetch('/api/discover?timeout=3',
@@ -233,7 +232,7 @@ const discovery = {
             this._found = false;
         } finally {
             this._scanning = false;
-            if (btn) { btn.disabled = false; btn.textContent = '⟳ Scan'; }
+            if (btn) { btn.disabled = false; btn.textContent = '↻'; }
         }
     },
 
@@ -303,13 +302,8 @@ const discovery = {
 function initDiscovery() {
     discovery.init();
 
-    const btnNames = document.getElementById('btn-disc-names');
-    if (btnNames) btnNames.addEventListener('click', async () => {
-        btnNames.disabled = true;
-        btnNames.textContent = '…';
-        await loadChannels();
-        btnNames.textContent = '↺ Labels';
-        btnNames.disabled = false;
+    document.querySelectorAll('.js-mixer-refresh').forEach((el) => {
+        el.addEventListener('click', handleMixerRefreshClick);
     });
 
     // Restart service button — tries soft audio restart first, full service restart if that fails
@@ -318,19 +312,17 @@ function initDiscovery() {
         const ok = await showConfirmRestart();
         if (!ok) return;
         btnRestart.disabled = true;
-        btnRestart.textContent = '⏳ Restarting audio…';
+        btnRestart.textContent = '…';
         try {
             const res = await fetch('/api/monitoring/restart', { method: 'POST' });
             const d   = await res.json();
             if (d.success) {
-                // Soft restart worked — just reload the page
-                btnRestart.textContent = '✓ Audio restarted';
+                btnRestart.textContent = '✓';
                 setTimeout(() => window.location.reload(), 1200);
                 return;
             }
         } catch (_) {}
-        // Soft restart failed — do a full service restart
-        btnRestart.textContent = '⏳ Service restart…';
+        btnRestart.textContent = '…';
         try {
             await fetch('/api/system/restart', { method: 'POST' });
         } catch (_) {}
@@ -419,7 +411,7 @@ function initTabs() {
     // Restore last active tab; skip 'routing' in mobile (tab is hidden)
     const isMobile   = document.body.classList.contains('mobile-view');
     const defaultTab = 'home';
-    const invalid    = isMobile ? ['routing'] : [];
+    const invalid    = ['markers', ...(isMobile ? ['routing'] : [])];
     
     // Check if this is a fresh session (no saved tab) or if we should force home
     let saved = localStorage.getItem('musicpi_active_tab');
@@ -493,7 +485,6 @@ function initViewToggle() {
 function initElements() {
     elements.btnRecord = document.getElementById('btn-record');
     elements.btnMarker = document.getElementById('btn-marker');
-    elements.btnResetPeaks = document.getElementById('btn-reset-peaks');
     elements.connectionStatus = document.getElementById('connection-status');
     elements.connectionText = document.getElementById('connection-text');
     elements.recordingTime = document.getElementById('recording-time');
@@ -534,6 +525,7 @@ function initElements() {
     // Transport confirmed display
     elements.tptConfirmedName   = document.getElementById('tpt-confirmed-name');
     elements.tptConfirmedConfig = document.getElementById('tpt-confirmed-config');
+    elements.tptCurrentTake     = document.getElementById('tpt-current-take');
 }
 
 function initWebSocket() {
@@ -606,9 +598,9 @@ function initWebSocket() {
 
 function setupEventListeners() {
     elements.btnRecord.addEventListener('click', handleRecordClick);
-    elements.btnMarker.addEventListener('click', handleMarkerClick);
-    elements.btnResetPeaks.addEventListener('click', handleResetPeaksClick);
-
+    if (elements.btnMarker) {
+        elements.btnMarker.addEventListener('click', handleMarkerClick);
+    }
     // Channel dropdown — arm channels immediately on selection and mark button as pending
     if (elements.selectChPreset) {
         elements.selectChPreset.addEventListener('change', () => {
@@ -645,6 +637,7 @@ function setupEventListeners() {
     if (elements.inputTrackName) {
         elements.inputTrackName.addEventListener('input', () => {
             _flashSaved(elements.inputTrackName);
+            _updateTakeLine();
         });
     }
 
@@ -938,6 +931,23 @@ function _updateTrackPlaceholder() {
     );
     const n = show ? (show.recordings || []).length + 1 : 1;
     el.placeholder = `song${n}`;
+    _updateTakeLine();
+}
+
+/** Song / take line under session+quality (idle: next take; recording: folder name from API). */
+function _updateTakeLine() {
+    const el = elements.tptCurrentTake;
+    if (!el) return;
+    if (recorder && recorder.isRecording) {
+        const name = (recorder.takeDisplayName || '').trim();
+        el.textContent = name ? `Now: ${name}` : 'Now: …';
+        el.classList.add('tpt-current-take--live');
+        return;
+    }
+    el.classList.remove('tpt-current-take--live');
+    const v = (elements.inputTrackName && elements.inputTrackName.value.trim()) || '';
+    const ph = (elements.inputTrackName && elements.inputTrackName.placeholder) || 'song1';
+    el.textContent = v ? `Next take: ${v}` : `Next take: ${ph}`;
 }
 
 /** Briefly highlight an input to confirm it auto-saved. */
@@ -1062,6 +1072,7 @@ function _updateConfirmedDisplay() {
     }
     if (elements.tptConfirmedConfig) elements.tptConfirmedConfig.textContent =
         `${tag} · ${armed} CH armed`;
+    _updateTakeLine();
 }
 
 /** Rebuild the channel preset dropdown using the real channel count. */
@@ -1142,15 +1153,15 @@ async function handleRecordClick() {
         if (meters) meters.setArmLocked(true);
         presetManager.lockDuringRecording(true);
         _updateConfirmedDisplay();
+        _updateTakeLine();
 
         // Update UI — keep REC button enabled so user can tap again to stop
         elements.btnRecord.classList.add('recording');
         elements.btnRecord.disabled = false;
-        elements.btnMarker.disabled = false;
+        if (elements.btnMarker) elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
         syncRecordTransportButton();
 
-        // Clear markers list
         clearMarkersList();
 
     } catch (error) {
@@ -1173,7 +1184,7 @@ async function handleStopClick() {
         // Update UI
         elements.btnRecord.classList.remove('recording');
         elements.btnRecord.disabled = false;
-        elements.btnMarker.disabled = true;
+        if (elements.btnMarker) elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
         syncRecordTransportButton();
 
@@ -1182,6 +1193,7 @@ async function handleStopClick() {
             elements.inputTrackName.value = '';
             _updateTrackPlaceholder();
         }
+        _updateTakeLine();
 
         // Refresh session list so the new recording appears immediately
         setTimeout(() => sessionsManager.loadSessions(), 500);
@@ -1206,8 +1218,24 @@ async function handleMarkerClick() {
     }
 }
 
-function handleResetPeaksClick() {
-    socket.emit('reset_peaks');
+async function handleMixerRefreshClick() {
+    const btns = document.querySelectorAll('.js-mixer-refresh');
+    if (!btns.length) return;
+    if ([...btns].some((b) => b.disabled)) return;
+    const prev = [...btns].map((b) => b.textContent);
+    btns.forEach((b) => {
+        b.disabled = true;
+        b.textContent = '…';
+    });
+    try {
+        await loadChannels();
+        if (socket && socket.connected) socket.emit('reset_peaks');
+    } finally {
+        btns.forEach((b, i) => {
+            b.textContent = prev[i];
+            b.disabled = false;
+        });
+    }
 }
 
 // ─── Recording Quality Preset Manager ────────────────────────────────────────
@@ -1331,11 +1359,12 @@ async function _startAutoRecording() {
 
         elements.btnRecord.classList.add('recording');
         elements.btnRecord.disabled = false;
-        elements.btnMarker.disabled = false;
+        if (elements.btnMarker) elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
         syncRecordTransportButton();
 
         clearMarkersList();
+        _updateTakeLine();
     } catch (err) {
         console.error('Auto-start recording failed:', err);
     }
@@ -1358,12 +1387,13 @@ function handleStatusUpdate(data) {
 
         elements.btnRecord.classList.remove('recording');
         elements.btnRecord.disabled = false;
-        elements.btnMarker.disabled = true;
+        if (elements.btnMarker) elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
         syncRecordTransportButton();
 
         recorder.isRecording = false;
         recorder.stopTimer();
+        _updateTakeLine();
         setTimeout(() => sessionsManager.loadSessions(), 500);
     }
 }
@@ -1400,6 +1430,7 @@ async function loadConfig() {
         // current UI matches the server's active config
         _updateConfirmedDisplay();
         _syncApplyButtonState();
+        _updateTakeLine();
 
     } catch (error) {
         console.error('Failed to load config:', error);
@@ -1529,17 +1560,21 @@ async function loadStatus() {
         // Update recording status
         if (status.recording) {
             if (status.recording.is_recording) {
+                recorder.takeDisplayName = (status.recording.take_display_name || '').trim();
                 elements.btnRecord.classList.add('recording');
                 elements.btnRecord.disabled = false;
-                elements.btnMarker.disabled = false;
+                if (elements.btnMarker) elements.btnMarker.disabled = false;
                 elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
                 syncRecordTransportButton();
 
                 recorder.isRecording = true;
                 recorder.recordingStartTime = Date.now() - (status.recording.duration * 1000);
                 recorder.startTimer();
+            } else {
+                recorder.takeDisplayName = '';
             }
         }
+        _updateTakeLine();
         
         // Load sessions
         sessionsManager.loadSessions();
@@ -1554,7 +1589,7 @@ function updateConnectionStatus(connected) {
     if (connected) {
         elements.connectionStatus.classList.add('connected');
         elements.connectionStatus.classList.remove('disconnected');
-        elements.connectionText.textContent = 'Connected';
+        elements.connectionText.textContent = '';
         elements.btnRecord.disabled = false;
         syncRecordTransportButton();
     } else {
@@ -1562,12 +1597,13 @@ function updateConnectionStatus(connected) {
         elements.connectionStatus.classList.remove('connected');
         elements.connectionText.textContent = 'Disconnected';
         elements.btnRecord.disabled = true;
-        elements.btnMarker.disabled = true;
+        if (elements.btnMarker) elements.btnMarker.disabled = true;
         syncRecordTransportButton();
     }
 }
 
 function addMarkerToList(marker) {
+    if (!elements.markersList) return;
     // Remove empty message if present
     const emptyMessage = elements.markersList.querySelector('.empty-message');
     if (emptyMessage) {
@@ -1593,6 +1629,7 @@ function addMarkerToList(marker) {
 }
 
 function clearMarkersList() {
+    if (!elements.markersList) return;
     elements.markersList.innerHTML = '<p class="empty-message">No markers yet</p>';
 }
 
@@ -1608,8 +1645,9 @@ document.addEventListener('keydown', (e) => {
         }
     }
     
-    // M: Add marker
+    // M: Add marker (desktop only — no Markers tab / no mobile MARK button)
     if (e.code === 'KeyM' && !e.target.matches('input, textarea')) {
+        if (document.body.classList.contains('mobile-view')) return;
         e.preventDefault();
         if (recorder.isRecording) {
             handleMarkerClick();

@@ -7,8 +7,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260412">
-    <link rel="stylesheet" href="css/touchscreen.css">
+    <link rel="stylesheet" href="css/style.css?v=20260448">
+    <link rel="stylesheet" href="css/touchscreen.css?v=20260435">
 </head>
 <body>
 <div class="console-app">
@@ -54,10 +54,8 @@
         <div class="hdr-center"></div>
 
         <div class="hdr-right">
-            <span id="hdr-pi-name" class="hdr-pi-name"></span>
-            <span id="disk-space" class="hdr-disk">--</span>
-            <span class="hdr-sep">·</span>
             <span id="connection-status" class="hdr-dot">●</span>
+            <span id="hdr-pi-name" class="hdr-pi-name">--</span>
             <span id="connection-text" class="hdr-conn">Connecting…</span>
             <button type="button" id="btn-page-reload" class="hdr-view-btn hdr-reload-btn" title="Reload page">↻</button>
             <button id="btn-view-toggle" class="hdr-view-btn" title="Switch to mobile view">Mobile</button>
@@ -68,7 +66,6 @@
     <div class="panel-tabs" role="tablist">
         <button class="panel-tab" data-tab="home"    role="tab">Home</button>
         <button class="panel-tab" data-tab="files"   role="tab">Recordings</button>
-        <button class="panel-tab" data-tab="markers" role="tab">Markers</button>
         <button class="panel-tab" data-tab="routing" role="tab">Routing</button>
         <button class="panel-tab" data-tab="storage" role="tab">System</button>
         <div class="panel-tabs-spacer"></div>
@@ -86,28 +83,32 @@
 
         <div class="disc-sep"></div>
 
-        <!-- Mixer discovered via OSC/network -->
-        <div class="disc-item" id="disc-xair">
-            <span class="disc-dot disc-dot--search" id="disc-xair-dot"></span>
-            <!-- RJ45 ethernet connector icon — visible in mobile only -->
-            <svg class="disc-icon-eth" viewBox="0 0 18 16" width="15" height="13"
-                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <!-- Connector body -->
-                <rect x="1.5" y="0.8" width="15" height="10" rx="1.5"
-                      fill="none" stroke="currentColor" stroke-width="1.4"/>
-                <!-- 4 contact pins -->
-                <line x1="5"  y1="3.5" x2="5"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
-                <line x1="8"  y1="3.5" x2="8"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
-                <line x1="11" y1="3.5" x2="11" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
-                <line x1="14" y1="3.5" x2="14" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
-                <!-- Locking tab -->
-                <rect x="6.5" y="10.6" width="5" height="2" rx="0.5" fill="currentColor"/>
-                <!-- Cable tail -->
-                <line x1="9" y1="12.6" x2="9" y2="15.5" stroke="currentColor" stroke-width="1.5"/>
-            </svg>
-            <span class="disc-device-icon" id="disc-xair-icon" title=""></span>
-            <span class="disc-label">MIXER</span>
-            <span class="disc-val" id="disc-xair-val">Searching…</span>
+        <div class="disc-item-group">
+            <!-- Mixer discovered via OSC/network -->
+            <div class="disc-item" id="disc-xair">
+                <span class="disc-dot disc-dot--search" id="disc-xair-dot"></span>
+                <!-- RJ45 ethernet connector icon — visible in mobile only -->
+                <svg class="disc-icon-eth" viewBox="0 0 18 16" width="15" height="13"
+                     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <!-- Connector body -->
+                    <rect x="1.5" y="0.8" width="15" height="10" rx="1.5"
+                          fill="none" stroke="currentColor" stroke-width="1.4"/>
+                    <!-- 4 contact pins -->
+                    <line x1="5"  y1="3.5" x2="5"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="8"  y1="3.5" x2="8"  y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="11" y1="3.5" x2="11" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="14" y1="3.5" x2="14" y2="8.2" stroke="currentColor" stroke-width="1.1"/>
+                    <!-- Locking tab -->
+                    <rect x="6.5" y="10.6" width="5" height="2" rx="0.5" fill="currentColor"/>
+                    <!-- Cable tail -->
+                    <line x1="9" y1="12.6" x2="9" y2="15.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <span class="disc-device-icon" id="disc-xair-icon" title=""></span>
+                <span class="disc-label">MIXER</span>
+                <span class="disc-val" id="disc-xair-val">Searching…</span>
+            </div>
+            <button type="button" class="disc-action-btn disc-action-btn--scan" id="btn-disc-scan"
+                    title="Scan for mixer on network; also refreshes USB device list">↻</button>
         </div>
 
         <div class="disc-sep"></div>
@@ -121,49 +122,47 @@
 
         <div class="disc-sep"></div>
 
-        <!-- USB audio cable -->
-        <div class="disc-item">
-            <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
-            <!-- USB trident icon — visible in mobile only -->
-            <svg class="disc-icon-usb" viewBox="0 0 14 18" width="10" height="14"
-                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <!-- Connector at bottom -->
-                <rect x="4" y="15" width="6" height="2.6" rx="0.7"
-                      fill="none" stroke="currentColor" stroke-width="1"/>
-                <!-- Stem -->
-                <line x1="7" y1="15" x2="7" y2="11" stroke="currentColor" stroke-width="1.2"/>
-                <!-- Horizontal bus -->
-                <line x1="2" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.2"/>
-                <!-- Left branch → square -->
-                <line x1="2" y1="11" x2="2" y2="8" stroke="currentColor" stroke-width="1"/>
-                <rect x="0.5" y="5.5" width="3" height="2.8" rx="0.4"
-                      fill="none" stroke="currentColor" stroke-width="1"/>
-                <!-- Right branch → circle -->
-                <line x1="12" y1="11" x2="12" y2="8" stroke="currentColor" stroke-width="1"/>
-                <circle cx="12" cy="6.2" r="1.9"
-                        fill="none" stroke="currentColor" stroke-width="1"/>
-                <!-- Centre branch → triangle -->
-                <line x1="7" y1="11" x2="7" y2="7" stroke="currentColor" stroke-width="1"/>
-                <polygon points="7,2.5 5,7 9,7" fill="currentColor"/>
-            </svg>
-            <span class="disc-label">USB</span>
-            <span class="disc-val" id="disc-usb-val">Checking…</span>
-        </div>
-
-        <!-- Actions (pushed right) -->
-        <div class="disc-actions">
-            <button class="disc-scan-btn" id="btn-disc-scan" title="Scan for mixer on network">⟳ Scan</button>
-            <button class="disc-scan-btn disc-restart-btn" id="btn-restart-service" title="Restart the MixPi recording service (use if no audio input is seen)">⏻ Restart</button>
+        <div class="disc-item-group">
+            <!-- USB audio cable -->
+            <div class="disc-item">
+                <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
+                <!-- USB trident icon — visible in mobile only -->
+                <svg class="disc-icon-usb" viewBox="0 0 14 18" width="10" height="14"
+                     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <!-- Connector at bottom -->
+                    <rect x="4" y="15" width="6" height="2.6" rx="0.7"
+                          fill="none" stroke="currentColor" stroke-width="1"/>
+                    <!-- Stem -->
+                    <line x1="7" y1="15" x2="7" y2="11" stroke="currentColor" stroke-width="1.2"/>
+                    <!-- Horizontal bus -->
+                    <line x1="2" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.2"/>
+                    <!-- Left branch → square -->
+                    <line x1="2" y1="11" x2="2" y2="8" stroke="currentColor" stroke-width="1"/>
+                    <rect x="0.5" y="5.5" width="3" height="2.8" rx="0.4"
+                          fill="none" stroke="currentColor" stroke-width="1"/>
+                    <!-- Right branch → circle -->
+                    <line x1="12" y1="11" x2="12" y2="8" stroke="currentColor" stroke-width="1"/>
+                    <circle cx="12" cy="6.2" r="1.9"
+                            fill="none" stroke="currentColor" stroke-width="1"/>
+                    <!-- Centre branch → triangle -->
+                    <line x1="7" y1="11" x2="7" y2="7" stroke="currentColor" stroke-width="1"/>
+                    <polygon points="7,2.5 5,7 9,7" fill="currentColor"/>
+                </svg>
+                <span class="disc-label">USB</span>
+                <span class="disc-val" id="disc-usb-val">Checking…</span>
+            </div>
+            <button type="button" class="disc-action-btn disc-action-btn--restart" id="btn-restart-service"
+                    title="Restart the MixPi recording service (use if no audio input is seen)">↻</button>
         </div>
     </div><!-- /discovery-bar -->
 
     <!-- ── Home tab content — starts active; JS manages tab switching ────── -->
     <div id="tab-home" class="active">
 
-    <!-- ── Transport bar ────────────────────────────────────────────────── -->
-    <nav class="console-transport">
-        <!-- Transport buttons + timer in one row -->
-        <div class="tpt-buttons">
+    <!-- ── Transport + desktop MIXER box; mobile: ↻ at right end of strip (desktop: MIXER ↻) ── -->
+    <div class="ch-strip-header">
+        <div class="ch-strip-header__transport" aria-label="Recording transport">
+            <div class="tpt-buttons">
             <div class="tpt-btn-group">
                 <button id="btn-record" class="btn tpt-btn tpt-rec" disabled aria-label="Record">
                     <svg class="rec-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -236,61 +235,61 @@
                     ◈ MARK
                 </button>
             </div>
-            <!-- Timer + status to the right of MARK -->
-            <div class="tpt-timer-row">
-                <span id="recording-time" class="tpt-timer">00:00:00</span>
-                <span id="recording-status" class="tpt-status-pill">Ready</span>
+            <div class="tpt-timer-stack">
+                <div class="tpt-timer-row">
+                    <span id="recording-time" class="tpt-timer">00:00:00</span>
+                    <span id="recording-status" class="tpt-status-pill">Ready</span>
+                </div>
+                <span id="disk-space" class="tpt-disk-in-transport">--</span>
+                <div class="tpt-session-refresh-row">
+                    <div class="tpt-confirmed">
+                        <span class="tpt-confirmed-name" id="tpt-confirmed-name" style="display:none"></span>
+                        <span class="tpt-confirmed-config" id="tpt-confirmed-config">—</span>
+                    </div>
+                </div>
+                <div id="tpt-current-take" class="tpt-current-take" aria-live="polite"></div>
+            </div>
+            <button type="button"
+                    class="ch-strip-header__refresh ch-strip-header__refresh--transport-end js-mixer-refresh"
+                    title="Refresh channel labels from mixer and reset peak holds"
+                    aria-label="Refresh channel labels and reset peaks">↻</button>
             </div>
         </div>
-
-    </nav>
-
-    <!-- ── Waveform panel ───────────────────────────────────────────────── -->
-    <div class="timeline-panel" id="timeline-panel">
-        <canvas id="tpt-timeline" class="tpt-timeline" height="34"></canvas>
+        <div class="ch-strip-header__mixer-col ch-strip-header__mixer-col--in-transport">
+            <div class="ch-strip-header__mixer-row">
+                <svg class="ch-strip-header__usb-icon" viewBox="0 0 22 22" width="18" height="18"
+                     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect x="7.5" y="18.5" width="7" height="2.8" rx="0.8"
+                          fill="none" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="11" y1="18.5" x2="11" y2="13.5"
+                          stroke="currentColor" stroke-width="1.3"/>
+                    <line x1="3" y1="13.5" x2="19" y2="13.5"
+                          stroke="currentColor" stroke-width="1.3"/>
+                    <line x1="3" y1="13.5" x2="3" y2="9.5"
+                          stroke="currentColor" stroke-width="1.1"/>
+                    <rect x="1" y="6.8" width="4" height="3.8" rx="0.5"
+                          fill="none" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="19" y1="13.5" x2="19" y2="9.5"
+                          stroke="currentColor" stroke-width="1.1"/>
+                    <circle cx="19" cy="7.5" r="2.3"
+                            fill="none" stroke="currentColor" stroke-width="1.1"/>
+                    <line x1="11" y1="13.5" x2="11" y2="8.5"
+                          stroke="currentColor" stroke-width="1.1"/>
+                    <polygon points="11,3.5 8,8.5 14,8.5" fill="currentColor"/>
+                </svg>
+                <span class="ch-strip-header__label">MIXER</span>
+                <button type="button"
+                        class="ch-strip-header__refresh ch-strip-header__refresh--mixer-corner js-mixer-refresh"
+                        title="Refresh channel labels from mixer and reset peak holds"
+                        aria-label="Refresh channel labels and reset peaks">↻</button>
+            </div>
+        </div>
     </div>
 
-    <!-- ── Channel strip header ─────────────────────────────────────────── -->
-    <div class="ch-strip-header">
-        <!-- USB trident icon -->
-        <svg class="ch-strip-header__usb-icon" viewBox="0 0 22 22" width="18" height="18"
-             xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <!-- Connector at bottom -->
-            <rect x="7.5" y="18.5" width="7" height="2.8" rx="0.8"
-                  fill="none" stroke="currentColor" stroke-width="1.1"/>
-            <!-- Stem -->
-            <line x1="11" y1="18.5" x2="11" y2="13.5"
-                  stroke="currentColor" stroke-width="1.3"/>
-            <!-- Horizontal bus -->
-            <line x1="3" y1="13.5" x2="19" y2="13.5"
-                  stroke="currentColor" stroke-width="1.3"/>
-            <!-- Left branch → square -->
-            <line x1="3" y1="13.5" x2="3" y2="9.5"
-                  stroke="currentColor" stroke-width="1.1"/>
-            <rect x="1" y="6.8" width="4" height="3.8" rx="0.5"
-                  fill="none" stroke="currentColor" stroke-width="1.1"/>
-            <!-- Right branch → circle -->
-            <line x1="19" y1="13.5" x2="19" y2="9.5"
-                  stroke="currentColor" stroke-width="1.1"/>
-            <circle cx="19" cy="7.5" r="2.3"
-                    fill="none" stroke="currentColor" stroke-width="1.1"/>
-            <!-- Centre branch → triangle -->
-            <line x1="11" y1="13.5" x2="11" y2="8.5"
-                  stroke="currentColor" stroke-width="1.1"/>
-            <polygon points="11,3.5 8,8.5 14,8.5" fill="currentColor"/>
-        </svg>
-        <span class="ch-strip-header__label">MIXER</span>
-        <span class="ch-strip-header__sep">—</span>
-        <span class="ch-strip-header__sub">USB SEND OUTPUT</span>
-        <!-- Confirmed session/config — moved here from transport bar -->
-        <div class="tpt-confirmed">
-            <span class="tpt-confirmed-name" id="tpt-confirmed-name" style="display:none"></span>
-            <span class="tpt-confirmed-config" id="tpt-confirmed-config">—</span>
-        </div>
-        <div class="ch-strip-header__actions">
-            <button id="btn-disc-names" class="btn btn-small btn-util" title="Refresh channel labels from mixer">↺ Labels</button>
-            <button id="btn-reset-peaks" class="btn btn-small btn-util" title="Reset peak hold indicators">Peaks ↺</button>
-        </div>
+    <!-- ── Meter sine + recording waveform ───────────────────────────────── -->
+    <div class="timeline-panel" id="timeline-panel">
+        <canvas id="tpt-meter-sine" class="tpt-meter-sine" height="16"></canvas>
+        <canvas id="tpt-timeline" class="tpt-timeline" height="34"></canvas>
     </div>
 
     <!-- ── Channel console ──────────────────────────────────────────────── -->
@@ -377,13 +376,6 @@
                 </div>
                 <div id="sessions-list" class="sessions-list">
                     <p class="empty-message">Loading…</p>
-                </div>
-            </div>
-
-            <!-- MARKERS TAB ─────────────────────────────────────────────── -->
-            <div id="tab-markers" class="tab-pane">
-                <div id="markers-list" class="markers-list">
-                    <p class="empty-message">No markers yet</p>
                 </div>
             </div>
 
@@ -524,10 +516,10 @@
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="js/meters.js"></script>
-<script src="js/recorder.js"></script>
+<script src="js/recorder.js?v=202604091"></script>
 <script src="js/sessions.js"></script>
 <script src="js/routing.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/app.js"></script>
+<script src="js/app.js?v=202604091"></script>
 </body>
 </html>

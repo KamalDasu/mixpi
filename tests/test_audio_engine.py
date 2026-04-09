@@ -74,6 +74,8 @@ class TestAudioEngine(unittest.TestCase):
         self.assertIn('frames', info)
         self.assertIn('sample_rate', info)
         self.assertIn('channels', info)
+        self.assertIn('take_display_name', info)
+        self.assertEqual(info['take_display_name'], '')
         
         self.assertFalse(info['is_recording'])
         self.assertEqual(info['sample_rate'], 48000)

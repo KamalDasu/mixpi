@@ -4,8 +4,11 @@ REST API routes for MixPi recorder
 
 from flask import Blueprint, jsonify, request
 from pathlib import Path
+import json
 import logging
 import re
+
+from src.recording_paths import recording_take_display_name
 import socket
 import struct
 import subprocess
@@ -42,16 +45,21 @@ _playback_sr       = 48000  # sample rate of the playing file
 
 
 # ---------------------------------------------------------------------------
-# Git-derived build version (cached at import time)
+# Git-derived build version (read fresh each request — no in-process cache)
 # ---------------------------------------------------------------------------
-_git_version_cache: dict = {}
-
 def _get_git_version() -> dict:
-    """Return git hash, commit date, and semver from web/__init__.py."""
-    if _git_version_cache:
-        return _git_version_cache
+    """
+    Return git hash, commit date, and semver.
+    Uses git when the repo is present; otherwise reads web/mixpi_version.json
+    (written by scripts/sync.sh before rsync) so deployed trees without .git
+    still show the correct build stamp.
+    """
     from web import __version__ as semver
     repo = Path(__file__).resolve().parent.parent
+    stamp = Path(__file__).resolve().parent / 'mixpi_version.json'
+    sem_tag = f'v{semver}'
+
+    short, date = '', ''
     try:
         short = subprocess.check_output(
             ['git', '-C', str(repo), 'rev-parse', '--short=7', 'HEAD'],
@@ -62,10 +70,23 @@ def _get_git_version() -> dict:
             stderr=subprocess.DEVNULL, text=True, timeout=5
         ).strip()
     except Exception:
+        short = ''
+
+    if not short:
         short, date = 'dev', ''
-    ver = f"v{semver}-{date} ({short})" if date else f"v{semver} ({short})"
-    _git_version_cache.update({'version': ver, 'hash': short, 'date': date, 'semver': f'v{semver}'})
-    return _git_version_cache
+        if stamp.is_file():
+            try:
+                data = json.loads(stamp.read_text(encoding='utf-8'))
+                h = (data.get('hash') or '').strip()
+                d = (data.get('date') or '').strip()
+                if h:
+                    short = h
+                    date = d
+            except Exception:
+                pass
+
+    ver = f"{sem_tag}-{date} ({short})" if date else f"{sem_tag} ({short})"
+    return {'version': ver, 'hash': short, 'date': date, 'semver': sem_tag}
 
 
 def _find_xr18_alsa_device() -> str:
@@ -190,6 +211,7 @@ def start_recording():
             return jsonify({
                 'success': True,
                 'session': str(session_path),
+                'take_display_name': recording_take_display_name(session_path),
                 'armed_channels': armed,
                 'message': f'Recording started ({len(armed)} channels)',
             })
@@ -371,9 +393,12 @@ def delete_session(session_name):
 
 @api.route('/version', methods=['GET'])
 def get_version():
-    """Return build version derived from the latest git commit."""
+    """Return build version derived from the current git HEAD (always fresh)."""
     try:
-        return jsonify(_get_git_version())
+        resp = jsonify(_get_git_version())
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
     except Exception as e:
         logger.error(f"Error getting version: {e}")
         return jsonify({'version': 'unknown', 'hash': '', 'date': ''})

@@ -54,6 +54,9 @@ env/
 .coverage
 htmlcov/
 
+# Sync-generated build stamp (scripts/sync.sh)
+web/mixpi_version.json
+
 # Temporary files
 *.tmp
 .cache/

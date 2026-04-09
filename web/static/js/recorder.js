@@ -9,10 +9,13 @@ class Recorder {
         this.recordingStartTime = null;
         this.timerInterval = null;
         this.markers = [];
+        /** Take / song folder name (without date suffix), from API while recording */
+        this.takeDisplayName = '';
         this._waveActive  = false;
         this._wavePixels  = 0;
         this._waveSeconds = 0;
         this._lastElapsed = 0;
+        this._sinePhase   = 0;
     }
     
     async startRecording(metadata) {
@@ -31,6 +34,7 @@ class Recorder {
                 this.isRecording = true;
                 this.recordingStartTime = Date.now();
                 this.markers = [];
+                this.takeDisplayName = (data.take_display_name || '').trim();
                 this.startTimer();
                 return true;
             } else {
@@ -122,17 +126,23 @@ class Recorder {
     startTimer() {
         this._initTimeline();
         this._waveActive = true;
+        const panel = document.getElementById('timeline-panel');
+        if (panel) panel.classList.add('timeline-panel--recording');
         this.timerInterval = setInterval(() => this.updateTimer(), 1000);
     }
 
     stopTimer() {
         this._waveActive = false;
+        this.takeDisplayName = '';
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
         const timerEl = document.getElementById('recording-time');
         if (timerEl) timerEl.textContent = '00:00:00';
+        const panel = document.getElementById('timeline-panel');
+        if (panel) panel.classList.remove('timeline-panel--recording');
+        this._initTimeline();
     }
 
     updateTimer() {
@@ -154,11 +164,55 @@ class Recorder {
         this._waveSeconds = 0;
         this._waveActive  = false;
         const canvas = document.getElementById('tpt-timeline');
-        if (!canvas) return;
-        canvas.width  = Math.max(
-            canvas.parentElement.getBoundingClientRect().width || 600, 200);
-        canvas.height = this._WH;
-        this._drawIdleBackground(canvas);
+        if (canvas) {
+            canvas.width  = Math.max(
+                canvas.parentElement.getBoundingClientRect().width || 600, 200);
+            canvas.height = this._WH;
+            this._drawIdleBackground(canvas);
+        }
+        this._drawMeterSine(-90, -90);
+    }
+
+    /** Narrow meter strip — animated sine, amplitude from peak level */
+    _drawMeterSine(peakDb, rmsDb) {
+        const canvas = document.getElementById('tpt-meter-sine');
+        if (!canvas || !canvas.getContext) return;
+        const parent = canvas.parentElement;
+        const rect = parent ? parent.getBoundingClientRect() : { width: 0 };
+        const W = Math.max(rect.width || 200, 120);
+        const H = 16;
+        if (canvas.width !== Math.floor(W) || canvas.height !== H) {
+            canvas.width  = Math.floor(W);
+            canvas.height = H;
+        }
+        const ctx = canvas.getContext('2d');
+        const mid = H / 2;
+        ctx.fillStyle = '#060606';
+        ctx.fillRect(0, 0, canvas.width, H);
+
+        const ampPeak = Math.max(0, Math.min(1, (peakDb + 60) / 60));
+        const ampRms  = Math.max(0, Math.min(1, (rmsDb  + 60) / 60));
+        const amp     = Math.max(ampPeak, ampRms * 0.85);
+        const A = Math.max(0.6, amp * (mid - 2));
+
+        this._sinePhase += 0.14 + amp * 0.45;
+        const blink = 0.28 + 0.72 * (0.5 + 0.5 * Math.sin(Date.now() / 150));
+        const w = canvas.width;
+        ctx.beginPath();
+        const step = 3;
+        for (let x = 0; x <= w; x += step) {
+            const y = mid + A * Math.sin(this._sinePhase + x * 0.055);
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        let stroke;
+        if (amp > 0.92) stroke = `rgba(248,113,113,${0.55 * blink})`;
+        else if (amp > 0.65) stroke = `rgba(251,191,36,${0.5 * blink})`;
+        else if (amp > 0.04) stroke = `rgba(56,189,248,${0.5 * blink})`;
+        else stroke = `rgba(71,85,105,${0.32 * blink})`;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
     }
 
     _drawIdleBackground(canvas) {
@@ -199,6 +253,9 @@ class Recorder {
      * rmsDb   – RMS of that channel in dB
      */
     pushWaveform(peakDb, rmsDb) {
+        this._drawMeterSine(peakDb, rmsDb);
+        if (!this._waveActive) return;
+
         const canvas = document.getElementById('tpt-timeline');
         if (!canvas || !canvas.getContext) return;
 

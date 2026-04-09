@@ -17,6 +17,7 @@ import collections
 
 from .mixer_detector import MixerDetector
 from .mixer_profiles import MixerProfile
+from .recording_paths import recording_take_display_name
 
 
 class AudioEngine:
@@ -676,6 +677,10 @@ class AudioEngine:
         # Which channels (1-based) have active file writers right now
         armed = [i + 1 for i, w in enumerate(self.file_writers) if w is not None]
 
+        take_display = ''
+        if self.is_recording and self.session_path:
+            take_display = recording_take_display_name(self.session_path)
+
         return {
             'is_recording': self.is_recording,
             'is_monitoring': self.is_monitoring,
@@ -686,4 +691,5 @@ class AudioEngine:
             'armed_channels': armed,
             'markers': len(self.markers),
             'waiting_for_signal': self.waiting_for_signal,
+            'take_display_name': take_display,
         }

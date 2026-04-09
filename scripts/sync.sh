@@ -6,6 +6,9 @@
 #   ./scripts/sync.sh                        # sync to default host
 #   ./scripts/sync.sh user@192.168.1.50      # sync to specific IP
 #   ./scripts/sync.sh --no-restart           # sync without restarting service
+#
+# Before rsync, writes web/mixpi_version.json from local git so the Pi (no .git)
+# still reports the correct hash in /api/version and the UI build badge.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -47,6 +50,50 @@ echo "============================================"
 echo "  Target : $REMOTE:$REMOTE_DIR"
 echo "  Restart: $RESTART"
 echo "--------------------------------------------"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo "  Stamping build version (web/mixpi_version.json)…"
+if ! (cd "$ROOT" && python3 - <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+repo = Path.cwd()
+sys.path.insert(0, str(repo))
+
+def run_git(args):
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(repo)] + args,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+        ).strip()
+    except Exception:
+        return ""
+
+short = run_git(["rev-parse", "--short=7", "HEAD"])
+date = run_git(["log", "-1", "--format=%cd", "--date=short"])
+if not short:
+    short = "unknown"
+
+try:
+    from web import __version__ as semver
+except Exception:
+    semver = "0"
+
+Path("web/mixpi_version.json").write_text(
+    json.dumps({"hash": short, "date": date, "semver": semver}, separators=(",", ":")),
+    encoding="utf-8",
+)
+print(f"    hash={short} date={date!r}")
+PY
+); then
+    echo -e "  ${YELLOW}⚠  Could not write mixpi_version.json (need python3 + git in repo)${NC}"
+fi
 
 # Sync source files (exclude dev artifacts, venv, recordings)
 rsync -avz --delete \
