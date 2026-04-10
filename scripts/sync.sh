@@ -3,9 +3,12 @@
 # MixPi — Quick sync to Raspberry Pi
 #
 # Usage:
-#   ./scripts/sync.sh                        # sync to default host
-#   ./scripts/sync.sh user@192.168.1.50      # sync to specific IP
-#   ./scripts/sync.sh --no-restart           # sync without restarting service
+#   ./scripts/sync.sh                        # rsync from this machine → Pi (default host)
+#   ./scripts/sync.sh user@192.168.1.50      # rsync to specific host
+#   ./scripts/sync.sh --no-restart           # rsync without restarting service
+#   ./scripts/sync.sh --git-only [user@host] # Pi only: git fetch + reset --hard origin/main
+#                                            # (requires /opt/mixpi to be a git clone on the Pi;
+#                                            #  skips rsync — Pi must reach GitHub)
 #
 # Before rsync, writes web/mixpi_version.json from local git so the Pi (no .git)
 # still reports the correct hash in /api/version and the UI build badge.
@@ -18,9 +21,21 @@ DEFAULT_TARGET="${DEFAULT_USER}@${DEFAULT_HOST}"
 
 REMOTE_DIR="/opt/mixpi"
 RESTART=true
+GIT_ONLY=false
 
 # Colour helpers
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+# Strip flags; remaining args are the optional user@host
+FILTERED=()
+for arg in "$@"; do
+    case "$arg" in
+        --git-only) GIT_ONLY=true ;;
+        --no-restart) RESTART=false ;;
+        *) FILTERED+=("$arg") ;;
+    esac
+done
+set -- "${FILTERED[@]}"
 
 # Resolve Pi target with interactive prompt if not provided
 if [[ -z "${1:-}" && -z "${PI_HOST:-}" ]]; then
@@ -35,24 +50,52 @@ else
     REMOTE="${1:-$DEFAULT_TARGET}"
 fi
 
-# Parse arguments
-if [[ "$REMOTE" == "--no-restart" ]]; then
-    REMOTE="$DEFAULT_TARGET"
-    RESTART=false
-fi
-if [[ "${2:-}" == "--no-restart" ]]; then
-    RESTART=false
-fi
-
 echo "============================================"
 echo "  MixPi — Sync to Pi"
 echo "============================================"
 echo "  Target : $REMOTE:$REMOTE_DIR"
 echo "  Restart: $RESTART"
+if $GIT_ONLY; then
+    echo "  Mode   : --git-only (no rsync; Pi tracks origin/main)"
+fi
 echo "--------------------------------------------"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Git-only update on the Pi (clone at /opt/mixpi) ─────────────────────────
+if $GIT_ONLY; then
+    if ! ssh "$REMOTE" "test -d $REMOTE_DIR/.git" 2>/dev/null; then
+        echo -e "  ${YELLOW}⚠  $REMOTE:$REMOTE_DIR has no .git — use normal sync (rsync) instead.${NC}"
+        echo "     Or clone once on the Pi: sudo git clone https://github.com/…/mixpi.git $REMOTE_DIR"
+        exit 1
+    fi
+    echo "  Updating Pi from GitHub (fetch + reset --hard origin/main)…"
+    if ! ssh "$REMOTE" "cd $REMOTE_DIR && sudo git fetch origin main && sudo git reset --hard origin/main"; then
+        echo -e "  ${YELLOW}⚠  git update failed (network, credentials, or sudo password on Pi).${NC}"
+        exit 1
+    fi
+    echo ""
+    echo "✓ Pi is at origin/main"
+    if $RESTART; then
+        echo "  Restarting MixPi service…"
+        ssh "$REMOTE" "sudo systemctl restart mixpi-recorder 2>/dev/null || \
+            (cd $REMOTE_DIR && pkill -f 'python.*app.py' 2>/dev/null; \
+             nohup python3 -m web.app > /tmp/mixpi.log 2>&1 &)" 2>/dev/null || true
+        sleep 2
+        HOST_ONLY="${REMOTE##*@}"
+        if curl -sfk "https://${HOST_ONLY}:5000/api/recording/status" >/dev/null 2>&1; then
+            echo "✓ MixPi is up at https://${HOST_ONLY}:5000"
+        elif curl -sf "http://${HOST_ONLY}:5000/api/recording/status" >/dev/null 2>&1; then
+            echo "✓ MixPi is up at http://${HOST_ONLY}:5000"
+        else
+            echo "  Service restarted — may take a few more seconds to start"
+            echo "  Open: http://${HOST_ONLY}:5000"
+        fi
+    fi
+    echo "============================================"
+    exit 0
+fi
 
 echo "  Stamping build version (web/mixpi_version.json)…"
 if ! (cd "$ROOT" && python3 - <<'PY'

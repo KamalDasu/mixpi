@@ -125,6 +125,14 @@ sudo apt-get install -y \
 curl -fsSL https://raw.githubusercontent.com/KamalDasu/mixpi/main/scripts/install-pi.sh | bash
 ```
 
+To **re-run the installer** and refresh code from GitHub, use the same command. By default it runs `git pull`; if that fails because of local changes on the Pi, force the tree to match `main` (typical for non-dev Pis):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/KamalDasu/mixpi/main/scripts/install-pi.sh | MIXPI_GIT_RESET=1 bash
+```
+
+Or from an existing clone: `bash /opt/mixpi/scripts/install-pi.sh` with `MIXPI_GIT_RESET=1` in the environment.
+
 ### Development machine
 
 ```bash

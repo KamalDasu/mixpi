@@ -25,6 +25,9 @@
 #    SKIP_AP=1                Skip WiFi AP setup
 #    SKIP_HTTPS=1             Skip HTTPS cert
 #    SKIP_OPTIMIZE=1          Skip Pi optimisations
+#    MIXPI_GIT_RESET=1        On update: git fetch + reset --hard origin/main
+#                             (discards local edits / stray files vs merge; good
+#                             when the Pi is not a dev machine)
 # =============================================================================
 
 set -euo pipefail
@@ -54,6 +57,7 @@ AP_PASSWORD="${AP_PASSWORD:-mixpi123}"
 SKIP_AP="${SKIP_AP:-0}"
 SKIP_HTTPS="${SKIP_HTTPS:-1}"
 SKIP_OPTIMIZE="${SKIP_OPTIMIZE:-0}"
+MIXPI_GIT_RESET="${MIXPI_GIT_RESET:-0}"
 HOSTNAME_LOCAL="$(hostname).local"
 
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'
@@ -160,7 +164,13 @@ if [ ! -d "$INSTALL_DIR/.git" ]; then
 else
     info "Updating existing install at $INSTALL_DIR..."
     sudo chown -R "$SVC_USER":"$SVC_USER" "$INSTALL_DIR"
-    git -C "$INSTALL_DIR" pull origin main
+    if [ "$MIXPI_GIT_RESET" = "1" ]; then
+        info "MIXPI_GIT_RESET=1 — matching origin/main (discarding local tree changes)…"
+        git -C "$INSTALL_DIR" fetch origin main
+        git -C "$INSTALL_DIR" reset --hard origin/main
+    else
+        git -C "$INSTALL_DIR" pull origin main
+    fi
 fi
 ok "Code at $INSTALL_DIR"
 
