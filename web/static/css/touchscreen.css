@@ -60,6 +60,21 @@ a, button, input, select, textarea, label,
         font-size:  1.1rem;
     }
 
+    /* Mobile discovery: keep ↻ beside icon but slightly smaller than full 44px bar buttons */
+    .mobile-view .disc-discovery-row-top {
+        min-height: 40px;
+    }
+    .mobile-view .disc-discovery-row-top .disc-action-btn {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 1.05rem;
+    }
+    .mobile-view .disc-discovery-row-top .disc-device-icon {
+        min-height: 40px;
+    }
+
     /* Header layout toggle: still compact but tappable on real touchscreens (+25% vs base) */
     .hdr-view-toggle {
         min-width: 50px;

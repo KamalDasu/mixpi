@@ -266,8 +266,7 @@ const discovery = {
                     if (val) {
                         val.dataset.full  = fullText;
                         val.dataset.short = shortText;
-                        val.textContent   = document.body.classList.contains('mobile-view')
-                            ? shortText : fullText;
+                        val.textContent   = fullText;
                         val.title = fullText;
                     }
                     const tip = `${model} — ${m.name || m.ip}${fw}`;
@@ -329,8 +328,7 @@ const discovery = {
                 if (val) {
                     val.dataset.full  = fullText;
                     val.dataset.short = shortText;
-                    val.textContent   = document.body.classList.contains('mobile-view')
-                        ? shortText : fullText;
+                    val.textContent   = fullText;
                     val.title = `${dev.name} — ${dev.input_channels} in / ${dev.output_channels} out @ ${dev.sample_rate} Hz`;
                 }
                 // If we found more than one mixer, hint it
@@ -548,6 +546,7 @@ function initViewToggle() {
 
         // Re-render discovery bar values for the new mode (short vs full)
         document.querySelectorAll('[data-full][data-short]').forEach(el => {
+            if (el.id === 'disc-usb-val' || el.id === 'disc-xair-val') return;
             el.textContent = enterMobile ? el.dataset.short : el.dataset.full;
         });
 

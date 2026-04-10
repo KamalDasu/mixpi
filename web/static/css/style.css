@@ -246,6 +246,27 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     flex-shrink: 0;
 }
 
+/* Row wrappers: desktop uses contents so #disc-xair / #disc-usb stay one line */
+.disc-discovery-row-top,
+.disc-discovery-row-body {
+    display: contents;
+}
+
+/* Desktop: ↻ lives in row-top in DOM; order keeps “… value/dropdown ↻” */
+body:not(.mobile-view) #disc-xair #disc-xair-dot { order: 1; }
+body:not(.mobile-view) #disc-xair .disc-icon-eth { order: 2; }
+body:not(.mobile-view) #disc-xair #disc-xair-icon { order: 3; }
+body:not(.mobile-view) #disc-xair > .disc-discovery-row-top > .disc-label { order: 4; }
+body:not(.mobile-view) #disc-xair #disc-xair-val { order: 5; }
+body:not(.mobile-view) #disc-xair #disc-mixer-select { order: 6; }
+body:not(.mobile-view) #disc-xair #btn-disc-scan { order: 7; }
+
+body:not(.mobile-view) #disc-usb #disc-usb-dot { order: 1; }
+body:not(.mobile-view) #disc-usb .disc-icon-usb { order: 2; }
+body:not(.mobile-view) #disc-usb > .disc-discovery-row-top > .disc-label { order: 3; }
+body:not(.mobile-view) #disc-usb #disc-usb-val { order: 4; }
+body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
+
 .disc-action-btn {
     flex-shrink: 0;
     width: 26px;
@@ -3030,11 +3051,16 @@ body:not(.mobile-view) .ch-name {
 
 /* ── Mobile-specific tab/layout adjustments (ordering is now in base CSS) ── */
 
-/* Compact scrollable tab bar */
+/* Tab bar: wrap to extra row(s) instead of only horizontal scroll */
 .mobile-view .panel-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    justify-content: center;
+    row-gap: 2px;
     -webkit-overflow-scrolling: touch;
+}
+.mobile-view .panel-tabs-spacer {
+    display: none;
 }
 /* Uniform compact tab sizing */
 .mobile-view .panel-tab {
@@ -3072,9 +3098,59 @@ body:not(.mobile-view) .ch-name {
 .mobile-view .hdr-sep,
 .mobile-view #connection-text { display: none; }
 
+/* Empty center column — hide so brand + status can use width / wrap cleanly */
+.mobile-view .hdr-center { display: none; }
+
+/* Header may grow downward when items do not fit one row */
+.mobile-view .console-header {
+    position: relative;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--header-h);
+    align-items: center;
+    gap: 6px 10px;
+    /* Symmetric horizontal padding; do NOT reserve extra right padding for ↻ here —
+       that indents the status row even though ↻ only sits on the top row (absolute). */
+    padding: 6px max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px));
+}
+/* Row 1: brand stays left and stops short of the absolutely positioned ↻ */
+.mobile-view .hdr-brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    /* Keep MIXPI row from running under the corner ↻ (~40px + inset + gap) */
+    max-width: calc(100% - 3.25rem - env(safe-area-inset-right, 0px));
+}
+/* Row 2: full-width strip so dot + hostname + toggle align to the true right padding */
+.mobile-view .hdr-right {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-left: 0;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 6px;
+}
+/* Page reload: top-right corner (out of flex flow so hostname + layout toggle wrap cleanly) */
+.mobile-view #btn-page-reload {
+    position: absolute;
+    top: 6px;
+    right: max(8px, env(safe-area-inset-right, 0px));
+    z-index: 2;
+    margin: 0;
+}
+.mobile-view #btn-page-reload.hdr-reload-btn {
+    align-self: auto;
+}
 .mobile-view .hdr-pi-name {
     font-size: 0.8125rem;
-    max-width: 120px;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .mobile-view .tpt-disk-in-transport {
@@ -3083,33 +3159,119 @@ body:not(.mobile-view) .ch-name {
 }
 
 /* ── Discovery bar: minimal — MIXER + USB + Scan + Restart only ──────────── */
-.mobile-view .discovery-bar { min-height: 36px; height: auto; padding: 4px 8px; }
+.mobile-view .discovery-bar {
+    min-height: 36px;
+    height: auto;
+    padding: 6px 8px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    align-content: flex-start;
+    gap: 6px 8px;
+    overflow: visible;
+}
+.mobile-view .disc-item-group {
+    flex-wrap: wrap;
+    max-width: 100%;
+    row-gap: 4px;
+}
+.mobile-view .disc-item-group--mixer,
+.mobile-view .disc-item-group--usb {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+.mobile-view .discovery-bar .disc-item {
+    max-width: 100%;
+}
+/* Line 1: dot + icon + ↻ (aligned height) · Line 2: verbose text or dropdown only */
+.mobile-view #disc-xair,
+.mobile-view #disc-usb {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+}
+.mobile-view .disc-discovery-row-top {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 30px;
+}
+.mobile-view .disc-discovery-row-top .disc-dot {
+    align-self: center;
+}
+.mobile-view .disc-discovery-row-top .disc-device-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+}
+.mobile-view .disc-discovery-row-top .disc-icon-usb {
+    flex-shrink: 0;
+    align-self: center;
+    width: 12px;
+    height: 16px;
+}
+.mobile-view .disc-discovery-row-top .disc-action-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    padding: 0;
+    font-size: 1rem;
+    align-self: center;
+    box-sizing: border-box;
+}
+.mobile-view .disc-discovery-row-body {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+.mobile-view .disc-discovery-row-body > .disc-val {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.mobile-view .disc-discovery-row-body > .disc-mixer-select:not([hidden]) {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+}
 .mobile-view .disc-item { padding: 0 6px; gap: 4px; }
-.mobile-view .disc-sep  { height: 12px; }
+.mobile-view .disc-sep  { height: 12px; align-self: center; }
 /* Hide all green labels (PI row; MIXER/USB use sr-only in base CSS) */
 .mobile-view .disc-label { display: none; }
 /* Hide PI item (hostname now in header) */
 .mobile-view #disc-pi,
 .mobile-view #disc-pi + .disc-sep { display: none; }
-/* Truncate long values */
+/* Prefer wrapping over hard truncation when space is tight */
 .mobile-view .disc-val {
     font-size: 0.85rem;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
 }
 .mobile-view #disc-xair-val,
 .mobile-view #disc-usb-val {
     font-size: 0.95rem;
-    max-width: min(220px, 48vw);
+    max-width: 100%;
 }
 .mobile-view .disc-mixer-select {
-    max-width: min(280px, 58vw);
+    max-width: 100%;
+    width: auto;
+    min-width: 0;
     font-size: 0.8rem;
     padding: 4px 6px;
 }
-/* Compact scan/restart buttons */
+/* Discovery ↻ buttons sized in .disc-discovery-row-top; keep other bar buttons if any */
 .mobile-view .disc-action-btn { width: 34px; height: 34px; font-size: 1.05rem; }
 
 /* Mobile: tighter labels in Recordings prerecord block */
@@ -3123,10 +3285,12 @@ body:not(.mobile-view) .ch-name {
 
 /* Mobile: session+↻ under disk; hide MIXER; transport left-aligned */
 .mobile-view .ch-strip-header {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: flex-start;
     overflow-x: visible;
+    row-gap: 8px;
+    column-gap: 10px;
 }
 
 .mobile-view .ch-strip-header__transport {
