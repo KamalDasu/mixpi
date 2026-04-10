@@ -2,6 +2,16 @@
  * LevelMeters — console/DAW-style channel strip renderer
  */
 
+/** True when the UI is likely a touchscreen kiosk (not mobile tile mode). */
+function _touchPrimaryDesktop() {
+    try {
+        if (document.body.classList.contains('mobile-view')) return false;
+        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    } catch (_) {
+        return false;
+    }
+}
+
 class LevelMeters {
     constructor(containerId, channelCount, channelNames) {
         this.container     = document.getElementById(containerId);
@@ -50,6 +60,10 @@ class LevelMeters {
     _refreshNameScroll(el) {
         el.classList.remove('ch-name--scroll');
         el.style.removeProperty('--scroll-px');
+        try {
+            const wm = getComputedStyle(el).writingMode || '';
+            if (wm && !wm.startsWith('horizontal')) return;
+        } catch (_) {}
         const overflow = el.scrollWidth - el.clientWidth;
         if (overflow > 3) {
             el.style.setProperty('--scroll-px', `-${overflow}px`);
@@ -113,17 +127,32 @@ class LevelMeters {
         armBtn.title = 'Toggle track arm for recording';
         armBtn.addEventListener('click', () => this._toggleArm(idx));
 
-        el.appendChild(num);
-        el.appendChild(nameEl);
-        el.appendChild(badges);
-        el.appendChild(bar);
-        el.appendChild(dbVal);
-        el.appendChild(armBtn);
+        const meterCol = document.createElement('div');
+        meterCol.className = 'ch-strip-meter-col';
+        meterCol.appendChild(bar);
+        meterCol.appendChild(dbVal);
+        meterCol.appendChild(armBtn);
 
-        // In mobile view the arm button is hidden — tap the whole tile to toggle arm
+        const mid = document.createElement('div');
+        mid.className = 'ch-strip-mid';
+        mid.appendChild(nameEl);
+        mid.appendChild(meterCol);
+
+        el.appendChild(num);
+        el.appendChild(badges);
+        el.appendChild(mid);
+
+        // Mobile: arm button hidden — tap the tile to toggle arm.
+        // Desktop + touch-primary: tap strip (not meter) to toggle — large REC target.
         el.addEventListener('click', (e) => {
-            if (!document.body.classList.contains('mobile-view')) return;
-            if (e.target === armBtn) return; // avoid double-fire if button ever becomes visible
+            if (document.body.classList.contains('mobile-view')) {
+                if (e.target === armBtn) return;
+                this._toggleArm(idx);
+                return;
+            }
+            if (!_touchPrimaryDesktop()) return;
+            if (e.target === armBtn || armBtn.contains(e.target)) return;
+            if (e.target.closest('.ch-meter-bar')) return;
             this._toggleArm(idx);
         });
 

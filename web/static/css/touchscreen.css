@@ -60,6 +60,18 @@ a, button, input, select, textarea, label,
         font-size:  1.1rem;
     }
 
+    /* Header layout toggle: still compact but tappable on real touchscreens (+25% vs base) */
+    .hdr-view-toggle {
+        min-width: 50px;
+        min-height: 50px;
+        width: 50px;
+        height: 50px;
+    }
+    .hdr-view-toggle .hdr-view-toggle-svg {
+        width: 22.5px;
+        height: 22.5px;
+    }
+
     /* ── Panel tabs ──────────────────────────────────────────────────────── */
     .panel-tab {
         min-height: 44px;
@@ -74,12 +86,49 @@ a, button, input, select, textarea, label,
         font-size:  0.78rem;
     }
 
-    /* ── ARM button on channel strips ────────────────────────────────────── */
-    .ch-arm-btn {
-        min-height: 44px;
-        min-width:  44px;
-        font-size:  0.72rem;
-        padding:    6px 4px;
+    /*
+     * Desktop channel strips on a real touchscreen (e.g. Pi DSI): keep meters + vertical
+     * names, but widen the strip and REC control so fingers match mobile-style targets.
+     * Scoped to (hover: none) so hybrid laptops (mouse + coarse touch) keep the small REC dot.
+     */
+    @media (hover: none) {
+        body:not(.mobile-view) .ch-strip {
+            flex: 0 0 54px;
+            width: 54px;
+            min-width: 50px;
+            max-width: 62px;
+            padding: 4px 2px 6px;
+            cursor: pointer;
+        }
+
+        body:not(.mobile-view) .ch-arm-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
+            max-width: none;
+            max-height: none;
+            border-width: 3px;
+            padding: 0;
+            font-size: 0;
+            line-height: 0;
+            text-indent: -9999px;
+        }
+
+        /* Slightly wider meter — easier to see; still read-only (arm via REC or strip tap) */
+        body:not(.mobile-view) .ch-meter-bar {
+            width: 10px;
+        }
+
+        body:not(.mobile-view) .ch-badges {
+            min-height: 16px;
+            gap: 3px;
+        }
+
+        body:not(.mobile-view) .ch-badges .badge {
+            font-size: 0.625rem;
+            padding: 2px 4px;
+        }
     }
 
     /* ── Preset quality cards ────────────────────────────────────────────── */
@@ -119,6 +168,13 @@ a, button, input, select, textarea, label,
 
     /* Routing source dropdown needs extra height for thumb */
     .route-select { min-height: 40px; }
+
+    /* Discovery bar: mixer picker when multiple desks on LAN */
+    .disc-mixer-select:not([hidden]) {
+        min-height: 44px;
+        padding:    6px 10px;
+        font-size:  0.85rem;
+    }
 
     /* ── Scrollable areas: momentum scroll on iOS/Chrome ─────────────────── */
     .channel-console,

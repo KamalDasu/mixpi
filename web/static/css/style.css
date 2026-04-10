@@ -77,7 +77,7 @@ body {
     height: auto;
     background: #0c0c0c;
     border-bottom: 1px solid var(--border);
-    padding: 0 14px;
+    padding: 0 10px 0 6px;
     flex-shrink: 0;
     font-size: 0.9rem;
     letter-spacing: 0.04em;
@@ -90,12 +90,18 @@ body {
     gap: 6px;
     padding: 0 12px;
 }
+/* Tighter horizontal rhythm in the connection bar */
+.discovery-bar .disc-item {
+    gap: 4px;
+    padding: 0 6px 0 0;
+}
 
 .disc-sep {
     width: 1px;
     height: 16px;
     background: #222;
     flex-shrink: 0;
+    margin: 0 3px;
 }
 
 /* PI hostname is shown in the header on desktop — hide duplicate discovery item */
@@ -139,6 +145,49 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     font-size: 0.74rem;
     text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
+/* Mixer + USB status text — larger for kiosk / arm’s-length viewing */
+#disc-xair-val,
+#disc-usb-val {
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Shown only when /api/discover returns 2+ mixers — no flex-grow (avoids a wide dead zone beside the rack icon) */
+.disc-mixer-select {
+    display: none;
+    min-width: 0;
+    max-width: min(420px, 52vw);
+    width: max-content;
+    flex: 0 1 auto;
+    background: #141414;
+    border: 1px solid #3a3a3a;
+    color: #f0f0f0;
+    font-family: monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+}
+.disc-mixer-select:not([hidden]) {
+    display: block;
+}
+#disc-xair,
+#disc-usb {
+    position: relative;
+    gap: 3px;
+}
+/* Don’t grow — avoids a dead flex gap between mixer text and the scan button */
+#disc-xair {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding-left: 0;
+}
+#disc-usb {
+    padding-left: 0;
+}
 
 .disc-device-icon {
     display: inline-flex;
@@ -149,6 +198,31 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 }
 .disc-device-icon:empty { display: none; }
 .disc-device-icon svg { display: block; }
+
+/* USB glyph on all viewports; Ethernet decorative only — mixer row uses rack .disc-device-icon */
+.disc-icon-eth {
+    display: none;
+}
+.disc-icon-usb {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--accent);
+    opacity: 0.9;
+}
+/* Visually hide MIXER/USB labels; keep for screen readers */
+#disc-xair .disc-label,
+#disc-usb .disc-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
 
 .disc-model-badge {
     display: inline-block;
@@ -167,14 +241,15 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 2px;
     flex-shrink: 0;
 }
 
 .disc-action-btn {
     flex-shrink: 0;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
     padding: 0;
     display: inline-flex;
     align-items: center;
@@ -291,26 +366,26 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 .hdr-brand {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 120px;
+    gap: 10px;
+    min-width: 150px;
 }
 
 .hdr-logo-svg {
-    width: 30px;
-    height: 30px;
+    width: 37.5px;
+    height: 37.5px;
     flex-shrink: 0;
     border-radius: 50%;
 }
 
 .hdr-title {
-    font-size: 1.0625rem;
+    font-size: 1.328125rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #ffffff;
 }
 .hdr-build {
-    font-size: 0.6875rem;
+    font-size: 0.859375rem;
     color: var(--text-dim);
     letter-spacing: 0.03em;
     opacity: 0.6;
@@ -333,10 +408,11 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 .hdr-right {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 120px;
+    gap: 6px;
+    min-width: 0;
     justify-content: flex-end;
     font-size: 0.975rem;
+    flex-shrink: 0;
 }
 
 .hdr-sep   { color: #555; }
@@ -374,11 +450,30 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 }
 .hdr-view-btn:hover { color: #ccc; border-color: #555; }
 
+/* Compact mobile/desktop layout toggle (icon only — phone ⇄ monitor) */
+.hdr-view-toggle {
+    min-width: 35px;
+    width: 35px;
+    height: 35px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0;
+    border-radius: 4px;
+}
+.hdr-view-toggle .hdr-view-toggle-svg {
+    width: 18.75px;
+    height: 18.75px;
+    display: block;
+    flex-shrink: 0;
+}
+
 /* Kiosk / touchscreen — full page reload (no browser chrome) */
 .hdr-reload-btn {
-    min-width: 32px;
-    padding: 3px 8px;
-    font-size: 1.25rem;
+    min-width: 40px;
+    padding: 4px 10px;
+    font-size: 1.5625rem;
     line-height: 1;
 }
 
@@ -999,6 +1094,9 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     padding: 0 12px;
     font-size: 0.75rem;
 }
+/* No markers UI for now — keep #btn-marker in DOM for easy restore */
+#btn-marker { display: none !important; }
+
 .ch-strip-header .tpt-timer {
     font-size: 1.025rem;
     min-width: 72px;
@@ -1211,25 +1309,55 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     text-shadow: 0 1px 2px rgba(0,0,0,0.9);
 }
 
-/* Channel name — fluid size on supporting engines; rem fallback for older touch browsers */
+/* Channel name — shared; desktop uses vertical text beside meter (see below) */
 .ch-name {
-    font-size: 0.72rem;
     font-weight: 700;
     color: #ffffff;
-    text-align: center;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 1px;
-    line-height: 1.15;
     text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 
+/* Desktop: name + meter share one row so labels can run vertically along the strip */
+body:not(.mobile-view) .ch-strip-mid {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+}
+
+body:not(.mobile-view) .ch-strip-meter-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+body:not(.mobile-view) .ch-name {
+    writing-mode: vertical-lr;
+    text-orientation: upright;
+    font-size: 0.62rem;
+    text-align: center;
+    width: 11px;
+    min-width: 11px;
+    max-width: 16px;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 0;
+    line-height: 1.05;
+    align-self: stretch;
+}
+
 @supports (font-size: 1cqi) {
-    .ch-name {
-        font-size: clamp(0.56rem, 28cqi, 0.88rem);
+    body:not(.mobile-view) .ch-name {
+        font-size: clamp(0.52rem, 24cqi, 0.74rem);
     }
 }
 
@@ -1405,14 +1533,26 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 .panel-content {
     order: 3;
     flex: 1;
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 18px 20px;
     min-height: 0;
     background: var(--bg-panel);
+    -webkit-overflow-scrolling: touch;
 }
 
 .tab-pane         { display: none; }
-.tab-pane.active  { display: flex; flex-direction: column; height: 100%; overflow-y: auto; overflow-x: hidden; }
+/* Size to content; scroll inside .panel-content so tall tabs (Recordings, System) stay reachable */
+.tab-pane.active  {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
 
 /* ── Setup tab (Quality top row, Session + Device bottom row) ───────────── */
 
@@ -1658,12 +1798,6 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     display: flex;
     flex-direction: column;
     gap: 10px;
-}
-/* Let the session list scroll inside the Recordings tab when setup is tall */
-#tab-files.tab-pane.active .sessions-list {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
 }
 
 /* ── Show group (collapsible) ────────────────────────────────────── */
@@ -2525,7 +2659,6 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 24px;
-    height: 100%;
 }
 
 .system-col {
@@ -2953,27 +3086,11 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 .mobile-view .discovery-bar { min-height: 36px; height: auto; padding: 4px 8px; }
 .mobile-view .disc-item { padding: 0 6px; gap: 4px; }
 .mobile-view .disc-sep  { height: 12px; }
-/* Hide all green labels */
+/* Hide all green labels (PI row; MIXER/USB use sr-only in base CSS) */
 .mobile-view .disc-label { display: none; }
-/* Hide the large desktop mixer board SVG icon */
-.mobile-view .disc-device-icon { display: none; }
-
-/* Ethernet + USB inline icons: hidden in desktop, shown in mobile */
-.disc-icon-eth,
-.disc-icon-usb { display: none; }
-.mobile-view .disc-icon-eth,
-.mobile-view .disc-icon-usb {
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--accent);
-    opacity: 0.9;
-}
-/* Hide PI item (hostname now in header) and OSC item (redundant) */
+/* Hide PI item (hostname now in header) */
 .mobile-view #disc-pi,
-.mobile-view #disc-pi + .disc-sep,
-.mobile-view .disc-item:has(#disc-osc-dot),
-.mobile-view .disc-item:has(#disc-osc-dot) + .disc-sep { display: none; }
+.mobile-view #disc-pi + .disc-sep { display: none; }
 /* Truncate long values */
 .mobile-view .disc-val {
     font-size: 0.85rem;
@@ -2981,6 +3098,16 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.mobile-view #disc-xair-val,
+.mobile-view #disc-usb-val {
+    font-size: 0.95rem;
+    max-width: min(220px, 48vw);
+}
+.mobile-view .disc-mixer-select {
+    max-width: min(280px, 58vw);
+    font-size: 0.8rem;
+    padding: 4px 6px;
 }
 /* Compact scan/restart buttons */
 .mobile-view .disc-action-btn { width: 34px; height: 34px; font-size: 1.05rem; }
@@ -3112,10 +3239,6 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     max-width: 156px;
 }
 
-.mobile-view #btn-marker {
-    display: none !important;
-}
-
 /* ── Channel console: 6×3 compact tile grid ─────────────────────────────── */
 /* ── Home tab: fill remaining space and scroll if content is taller than screen */
 .mobile-view #tab-home,
@@ -3175,10 +3298,31 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
 .mobile-view .ch-strip--muted { opacity: 0.4; }
 .mobile-view .ch-strip--muted::after { display: none; }
 
+/* Mobile tiles: horizontal name on top; mid row collapses to label only */
+.mobile-view .ch-strip-mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 2px;
+}
+.mobile-view .ch-strip-meter-col {
+    display: none;
+}
+
 /* Tile name: fixed rem so labels always paint on Pi / older WebKit (avoid cqi here) */
 .mobile-view .ch-name {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
     font-size: 0.68rem;
     text-align: center;
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 auto;
+    align-self: stretch;
     text-overflow: clip;   /* marquee handles long names — no ellipsis */
     overflow: visible;
     min-height: 1.1em;

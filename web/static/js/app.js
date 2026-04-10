@@ -106,12 +106,11 @@ function initHttpsBanner() {
 // ── Panel tab switching ────────────────────────────────────────────────────
 // ── Network discovery panel ───────────────────────────────────────────────────
 
-/** Return an inline SVG mixer icon sized to fit the discovery bar. */
+/** Return an inline SVG mixer (rack) icon for the discovery bar — desktop + mobile. */
 function _xairMixerSVG(model) {
     const m = (model || '').toUpperCase();
     const ch = m.includes('18') ? 18 : m.includes('16') ? 16 : m.includes('12') ? 12 : 0;
     const label = ch ? `${ch}CH` : 'XAIR';
-    // Minimal rack-unit mixer board representation
     return `<svg viewBox="0 0 34 22" width="34" height="22" xmlns="http://www.w3.org/2000/svg">
   <rect x="0.5" y="0.5" width="33" height="21" rx="2" fill="none" stroke="currentColor" stroke-width="1"/>
   <line x1="5"  y1="4" x2="5"  y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -129,11 +128,21 @@ function _xairMixerSVG(model) {
 </svg>`;
 }
 
+/** Label for mixer dropdown / discovery (name or model, plus IP). */
+function _mixerDiscoveryLabel(m) {
+    const name = (m.name || '').trim();
+    const model = m.model || 'XAir';
+    const base = name || model;
+    return `${base} — ${m.ip}`;
+}
+
 const discovery = {
     _scanning: false,
     _found: false,        // true once a mixer has been confirmed via OSC
     _retryTimer: null,    // interval handle for OSC retry-when-not-found
     _usbTimer:   null,    // interval handle for USB polling
+    _lastMixers: [],      // last sorted /discover list (for icons after select change)
+    _oscMixerIp: '',      // last IP we connected via UI
 
     async loadNetwork() {
         try {
@@ -150,6 +159,50 @@ const discovery = {
         } catch (_) {}
     },
 
+    /**
+     * Connect OSC to a mixer IP; refresh rack icon + tooltips from _lastMixers when possible.
+     */
+    async connectOscToIp(ip) {
+        if (!ip) return;
+        try {
+            const cr = await fetch('/api/osc/connect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip})
+            });
+            const cd = await cr.json();
+            const icon = document.getElementById('disc-xair-icon');
+            const xair = document.getElementById('disc-xair');
+            const mix = (this._lastMixers || []).find(x => String(x.ip) === String(ip));
+            if (mix && icon) {
+                icon.innerHTML = _xairMixerSVG(mix.model);
+                const model = mix.model || 'XAir';
+                const fw = mix.firmware ? ` fw${mix.firmware}` : '';
+                const tip = `${model} — ${mix.name || ip}${fw}`;
+                icon.title = tip;
+                if (xair) xair.title = tip;
+            }
+            if (cd.connected) {
+                this._oscMixerIp = ip;
+                setTimeout(() => loadChannels(), 500);
+            }
+        } catch (_) {}
+    },
+
+    _setMixerUiMode(multi) {
+        const val = document.getElementById('disc-xair-val');
+        const sel = document.getElementById('disc-mixer-select');
+        if (val) val.hidden = !!multi;
+        if (sel) {
+            if (multi) {
+                sel.hidden = false;
+            } else {
+                sel.hidden = true;
+                sel.innerHTML = '';
+            }
+        }
+    },
+
     async scan(isManual = false) {
         if (this._scanning) return;
         this._scanning = true;
@@ -157,12 +210,18 @@ const discovery = {
         const dot  = document.getElementById('disc-xair-dot');
         const val  = document.getElementById('disc-xair-val');
         const icon = document.getElementById('disc-xair-icon');
+        const xair = document.getElementById('disc-xair');
         const btn  = document.getElementById('btn-disc-scan');
 
         if (isManual || !this._found) {
             if (dot)  dot.className = 'disc-dot disc-dot--search';
-            if (val)  val.textContent = 'Searching…';
-            if (icon) icon.innerHTML = '';
+            if (val) {
+                val.hidden = false;
+                val.textContent = 'Searching…';
+            }
+            this._setMixerUiMode(false);
+            if (icon) { icon.innerHTML = ''; icon.title = ''; }
+            if (xair) xair.title = '';
         }
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
@@ -171,43 +230,51 @@ const discovery = {
                 { signal: AbortSignal.timeout(6000) });
             const d = await res.json();
             if (d.success && d.mixers && d.mixers.length > 0) {
-                const m = d.mixers[0];
-                if (dot)  dot.className = 'disc-dot disc-dot--found';
-                if (icon) icon.innerHTML = _xairMixerSVG(m.model);
-                const model = m.model || 'XAir';
-                const fw    = m.firmware ? ` fw${m.firmware}` : '';
-                const fullText  = `${model}${fw} @ ${m.ip}`;
-                const shortText = model;
-                if (val) {
-                    val.dataset.full  = fullText;
-                    val.dataset.short = shortText;
-                    val.textContent   = document.body.classList.contains('mobile-view')
-                        ? shortText : fullText;
-                    val.title = fullText;
-                }
-                if (icon) icon.title = `${model} — ${m.name || m.ip}${fw}`;
+                const sorted = [...d.mixers].sort((a, b) =>
+                    String(a.ip || '').localeCompare(String(b.ip || '')));
+                this._lastMixers = sorted;
 
-                // Tell the backend to connect/reconnect OSC to the discovered IP
-                try {
-                    const cr = await fetch('/api/osc/connect', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ip: m.ip})
-                    });
-                    const cd = await cr.json();
-                    const oscVal = document.getElementById('disc-osc-val');
-                    const oscDot = document.getElementById('disc-osc-dot');
-                    if (cd.connected) {
-                        if (oscVal) oscVal.textContent = 'Live';
-                        if (oscVal) oscVal.style.color = '#22c55e';
-                        if (oscDot) oscDot.className = 'disc-dot disc-dot--found';
-                        // Refresh channel names now that OSC is live
-                        setTimeout(() => loadChannels(), 500);
-                    } else {
-                        if (oscVal) oscVal.textContent = m.ip;
-                        if (oscVal) oscVal.style.color = '#888';
+                if (sorted.length > 1) {
+                    this._setMixerUiMode(true);
+                    const sel = document.getElementById('disc-mixer-select');
+                    if (dot) dot.className = 'disc-dot disc-dot--found';
+                    if (sel) {
+                        sel.innerHTML = '';
+                        sorted.forEach((m) => {
+                            const opt = document.createElement('option');
+                            opt.value = m.ip;
+                            opt.textContent = _mixerDiscoveryLabel(m);
+                            const fw = m.firmware ? ` fw${m.firmware}` : '';
+                            opt.title = `${m.model || 'XAir'}${fw} @ ${m.ip}`;
+                            sel.appendChild(opt);
+                        });
+                        const preferred = this._oscMixerIp && sorted.some(x => String(x.ip) === String(this._oscMixerIp))
+                            ? String(this._oscMixerIp)
+                            : sorted[0].ip;
+                        sel.value = preferred;
+                        await this.connectOscToIp(sel.value);
                     }
-                } catch (_) {}
+                } else {
+                    const m = sorted[0];
+                    this._setMixerUiMode(false);
+                    if (dot)  dot.className = 'disc-dot disc-dot--found';
+                    if (icon) icon.innerHTML = _xairMixerSVG(m.model);
+                    const model = m.model || 'XAir';
+                    const fw    = m.firmware ? ` fw${m.firmware}` : '';
+                    const fullText  = `${model}${fw} @ ${m.ip}`;
+                    const shortText = model;
+                    if (val) {
+                        val.dataset.full  = fullText;
+                        val.dataset.short = shortText;
+                        val.textContent   = document.body.classList.contains('mobile-view')
+                            ? shortText : fullText;
+                        val.title = fullText;
+                    }
+                    const tip = `${model} — ${m.name || m.ip}${fw}`;
+                    if (icon) icon.title = tip;
+                    if (xair) xair.title = tip;
+                    await this.connectOscToIp(m.ip);
+                }
 
                 if (!this._found) {
                     this._found = true;
@@ -217,18 +284,24 @@ const discovery = {
                     }
                 }
             } else {
+                this._lastMixers = [];
                 if (dot)  dot.className = 'disc-dot disc-dot--error';
+                this._setMixerUiMode(false);
                 if (val)  val.textContent = 'Not found';
-                if (icon) icon.innerHTML = '';
+                if (icon) { icon.innerHTML = ''; icon.title = ''; }
+                if (xair) xair.title = '';
                 this._found = false;
                 if (!this._retryTimer) {
                     this._retryTimer = setInterval(() => this.scan(), 30000);
                 }
             }
         } catch (_) {
+            this._lastMixers = [];
             if (dot)  dot.className = 'disc-dot disc-dot--error';
+            this._setMixerUiMode(false);
             if (val)  val.textContent = 'Error';
-            if (icon) icon.innerHTML = '';
+            if (icon) { icon.innerHTML = ''; icon.title = ''; }
+            if (xair) xair.title = '';
             this._found = false;
         } finally {
             this._scanning = false;
@@ -275,15 +348,6 @@ const discovery = {
         }
     },
 
-    /** Update the OSC dot based on connection state text */
-    updateOscDot(connected) {
-        const dot = document.getElementById('disc-osc-dot');
-        if (!dot) return;
-        dot.className = connected
-            ? 'disc-dot disc-dot--ok'
-            : 'disc-dot disc-dot--search';
-    },
-
     init() {
         this.loadNetwork();
         this.scan();
@@ -296,6 +360,13 @@ const discovery = {
             this.pollUsb();
             loadStorageLocations();   // re-detect USB drives on manual scan
         });
+        const mixSel = document.getElementById('disc-mixer-select');
+        if (mixSel) {
+            mixSel.addEventListener('change', () => {
+                const ip = mixSel.value;
+                if (ip) this.connectOscToIp(ip);
+            });
+        }
     }
 };
 
@@ -438,10 +509,22 @@ function initPageReload() {
     btn.addEventListener('click', () => window.location.reload());
 }
 
+/** SVG icons for compact layout toggle (phone = go to mobile, monitor = go to desktop). */
+const _VIEW_TOGGLE_SVG_PHONE = `<svg class="hdr-view-toggle-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M17 1H7C5.9 1 5 1.9 5 3v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z"/></svg>`;
+const _VIEW_TOGGLE_SVG_MONITOR = `<svg class="hdr-view-toggle-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>`;
+
+function _syncViewToggleButton(btn) {
+    if (!btn) return;
+    const wrap = btn.querySelector('.hdr-view-toggle-icon');
+    const mobile = document.body.classList.contains('mobile-view');
+    if (wrap) wrap.innerHTML = mobile ? _VIEW_TOGGLE_SVG_MONITOR : _VIEW_TOGGLE_SVG_PHONE;
+    const toDesktop = mobile;
+    btn.setAttribute('aria-label', toDesktop ? 'Switch to desktop layout' : 'Switch to mobile layout');
+    btn.title = toDesktop ? 'Switch to desktop layout' : 'Switch to mobile layout';
+}
+
 function initViewToggle() {
-    const btn     = document.getElementById('btn-view-toggle');
-    const homeEl  = document.getElementById('tab-home');
-    const content = document.querySelector('.panel-content');
+    const btn = document.getElementById('btn-view-toggle');
     if (!btn) return;
 
     // Determine starting view:
@@ -453,14 +536,14 @@ function initViewToggle() {
 
     if (startMobile) {
         document.body.classList.add('mobile-view');
-        btn.textContent = 'Desktop';
         // initTabs() (which runs next) will call activateTab('home') and set up state
     }
+    _syncViewToggleButton(btn);
 
     btn.addEventListener('click', () => {
         const enterMobile = !document.body.classList.contains('mobile-view');
         document.body.classList.toggle('mobile-view', enterMobile);
-        btn.textContent = enterMobile ? 'Desktop' : 'Mobile';
+        _syncViewToggleButton(btn);
         localStorage.setItem('musicpi_view', enterMobile ? 'mobile' : 'desktop');
 
         // Re-render discovery bar values for the new mode (short vs full)
@@ -1454,13 +1537,6 @@ async function loadChannels() {
                 ? 'var(--accent-color)'
                 : 'var(--text-secondary)';
         }
-        // Update discovery bar OSC status + dot
-        const discOsc = document.getElementById('disc-osc-val');
-        if (discOsc) {
-            discOsc.textContent = data.osc_connected ? 'Live' : 'Offline';
-            discOsc.style.color = data.osc_connected ? '#22c55e' : '#555';
-        }
-        discovery.updateOscDot(!!data.osc_connected);
     } catch (error) {
         // Non-critical
     }
@@ -1645,12 +1721,5 @@ document.addEventListener('keydown', (e) => {
         }
     }
     
-    // M: Add marker (desktop only — no Markers tab / no mobile MARK button)
-    if (e.code === 'KeyM' && !e.target.matches('input, textarea')) {
-        if (document.body.classList.contains('mobile-view')) return;
-        e.preventDefault();
-        if (recorder.isRecording) {
-            handleMarkerClick();
-        }
-    }
+    // M: marker hotkey — off while MARK button is hidden (see #btn-marker in style.css)
 });

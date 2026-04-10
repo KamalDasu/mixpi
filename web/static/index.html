@@ -7,8 +7,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260413">
-    <link rel="stylesheet" href="css/touchscreen.css?v=20260435">
+    <link rel="stylesheet" href="css/style.css?v=20260424">
+    <link rel="stylesheet" href="css/touchscreen.css?v=20260439">
 </head>
 <body>
 <div class="console-app">
@@ -58,7 +58,10 @@
             <span id="hdr-pi-name" class="hdr-pi-name">--</span>
             <span id="connection-text" class="hdr-conn">Connecting…</span>
             <button type="button" id="btn-page-reload" class="hdr-view-btn hdr-reload-btn" title="Reload page">↻</button>
-            <button id="btn-view-toggle" class="hdr-view-btn" title="Switch to mobile view">Mobile</button>
+            <button type="button" id="btn-view-toggle" class="hdr-view-btn hdr-view-toggle"
+                    aria-label="Switch to mobile layout" title="Switch to mobile layout">
+                <span class="hdr-view-toggle-icon" aria-hidden="true"></span>
+            </button>
         </div>
     </header>
 
@@ -87,7 +90,7 @@
             <!-- Mixer discovered via OSC/network -->
             <div class="disc-item" id="disc-xair">
                 <span class="disc-dot disc-dot--search" id="disc-xair-dot"></span>
-                <!-- RJ45 ethernet connector icon — visible in mobile only -->
+                <!-- RJ45 ethernet connector icon (mixer / LAN discovery) -->
                 <svg class="disc-icon-eth" viewBox="0 0 18 16" width="15" height="13"
                      xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <!-- Connector body -->
@@ -106,6 +109,8 @@
                 <span class="disc-device-icon" id="disc-xair-icon" title=""></span>
                 <span class="disc-label">MIXER</span>
                 <span class="disc-val" id="disc-xair-val">Searching…</span>
+                <select id="disc-mixer-select" class="disc-mixer-select" hidden
+                        aria-label="Choose mixer for OSC when multiple are found"></select>
             </div>
             <button type="button" class="disc-action-btn disc-action-btn--scan" id="btn-disc-scan"
                     title="Scan for mixer on network; also refreshes USB device list">↻</button>
@@ -113,20 +118,11 @@
 
         <div class="disc-sep"></div>
 
-        <!-- OSC connection (network control) -->
-        <div class="disc-item">
-            <span class="disc-dot" id="disc-osc-dot"></span>
-            <span class="disc-label">OSC</span>
-            <span class="disc-val" id="disc-osc-val">--</span>
-        </div>
-
-        <div class="disc-sep"></div>
-
         <div class="disc-item-group">
             <!-- USB audio cable -->
-            <div class="disc-item">
+            <div class="disc-item" id="disc-usb">
                 <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
-                <!-- USB trident icon — visible in mobile only -->
+                <!-- USB trident icon -->
                 <svg class="disc-icon-usb" viewBox="0 0 14 18" width="10" height="14"
                      xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <!-- Connector at bottom -->
@@ -515,11 +511,11 @@
 </div>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-<script src="js/meters.js"></script>
+<script src="js/meters.js?v=20260416"></script>
 <script src="js/recorder.js?v=202604091"></script>
 <script src="js/sessions.js"></script>
 <script src="js/routing.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/app.js?v=202604091"></script>
+<script src="js/app.js?v=202604231"></script>
 </body>
 </html>
