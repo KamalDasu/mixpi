@@ -31,7 +31,10 @@ class AudioEngine:
     - Real-time level monitoring
     - Graceful shutdown with proper file finalization
     """
-    
+
+    # Per audio block: decay old hold then max with this block’s peak (~1 s to near-silence at 48 kHz).
+    _PEAK_HOLD_DECAY = 0.99
+
     def __init__(self, config: dict):
         """
         Initialize audio engine
@@ -633,7 +636,10 @@ class AudioEngine:
 
         # Instantaneous peak per channel (linear)
         peaks_linear = np.max(np.abs(audio_data), axis=0)
-        self.peak_levels = np.maximum(self.peak_levels, peaks_linear)
+        self.peak_levels = np.maximum(
+            peaks_linear,
+            self.peak_levels * self._PEAK_HOLD_DECAY,
+        )
 
         # Convert to dBFS for the UI  (floor at -90 dB)
         def to_db(linear: np.ndarray) -> list:
