@@ -843,7 +843,7 @@ body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
     font-size: 1.05rem;
 }
 
-.mobile-view .ch-strip-header__refresh--transport-end {
+.mobile-view #tab-home .ch-strip-header__refresh--transport-end {
     display: inline-flex !important;
     align-self: flex-end;
     margin-bottom: 2px;
@@ -933,6 +933,16 @@ body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
     font-weight: 400;
 }
 
+/* Quality preset tag (line 1) + armed count (line 2) */
+.tpt-confirmed-config-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
 .tpt-confirmed-config {
     font-size: 0.85rem;
     font-weight: 400;
@@ -941,6 +951,16 @@ body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
     letter-spacing: 0.05em;
     white-space: nowrap;
     flex-shrink: 0;
+    text-shadow: 0 0 6px rgba(76,175,80,0.2);
+}
+
+.tpt-confirmed-armed {
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-family: monospace;
+    color: #5dde65;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
     text-shadow: 0 0 6px rgba(76,175,80,0.2);
 }
 
@@ -1354,6 +1374,7 @@ body:not(.mobile-view) .ch-strip-meter-col {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-end;
     gap: 2px;
     flex: 1 1 auto;
     min-width: 0;
@@ -3055,7 +3076,7 @@ body:not(.mobile-view) .ch-name {
 .mobile-view .panel-tabs {
     flex-wrap: wrap;
     overflow-x: visible;
-    justify-content: center;
+    justify-content: flex-start;
     row-gap: 2px;
     -webkit-overflow-scrolling: touch;
 }
@@ -3068,7 +3089,7 @@ body:not(.mobile-view) .ch-name {
     font-size: 0.85rem;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 /* Hide the Routing tab in mobile */
@@ -3153,7 +3174,7 @@ body:not(.mobile-view) .ch-name {
     text-overflow: clip;
 }
 
-.mobile-view .tpt-disk-in-transport {
+.mobile-view #tab-home .tpt-disk-in-transport {
     font-size: 0.775rem;
     max-width: 200px;
 }
@@ -3283,32 +3304,34 @@ body:not(.mobile-view) .ch-name {
     font-size: 0.78rem;
 }
 
-/* Mobile: session+↻ under disk; hide MIXER; transport left-aligned */
-.mobile-view .ch-strip-header {
+/* Home tab only: session+↻ under disk; hide MIXER; transport + REC row left-aligned */
+.mobile-view #tab-home .ch-strip-header {
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: flex-start;
     overflow-x: visible;
     row-gap: 8px;
     column-gap: 10px;
+    padding: 4px 10px;
 }
 
-.mobile-view .ch-strip-header__transport {
-    flex: 0 1 auto;
+.mobile-view #tab-home .ch-strip-header__transport {
+    flex: 1 1 100%;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     justify-content: flex-start;
+    align-items: flex-start;
     padding: 0;
     margin: 0;
 }
 
-.mobile-view .ch-strip-header__mixer-col,
-.mobile-view .ch-strip-header__mixer-col--in-transport {
+.mobile-view #tab-home .ch-strip-header__mixer-col,
+.mobile-view #tab-home .ch-strip-header__mixer-col--in-transport {
     display: none !important;
 }
 
-.mobile-view .tpt-timer-stack {
+.mobile-view #tab-home .tpt-timer-stack {
     border-left: none;
     padding-left: 0;
     margin-left: 0;
@@ -3320,7 +3343,7 @@ body:not(.mobile-view) .ch-name {
     box-sizing: border-box;
 }
 
-.mobile-view .tpt-buttons {
+.mobile-view #tab-home .tpt-buttons {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: flex-start;
@@ -3332,12 +3355,7 @@ body:not(.mobile-view) .ch-name {
     box-sizing: border-box;
 }
 
-/* Override touchscreen.css `.ch-strip-header .tpt-buttons { justify-content: center }` */
-.mobile-view .ch-strip-header .tpt-buttons {
-    justify-content: flex-start;
-}
-
-.mobile-view .tpt-timer-row {
+.mobile-view #tab-home .tpt-timer-row {
     border-left: none;
     padding-left: 0;
     margin-left: 0;
@@ -3346,7 +3364,7 @@ body:not(.mobile-view) .ch-name {
     align-self: stretch;
 }
 
-.mobile-view .tpt-disk-in-transport {
+.mobile-view #tab-home .tpt-disk-in-transport {
     text-align: left;
     align-self: stretch;
     max-width: 100%;
@@ -3354,7 +3372,7 @@ body:not(.mobile-view) .ch-name {
     box-sizing: border-box;
 }
 
-.mobile-view .tpt-timer-stack .tpt-session-refresh-row {
+.mobile-view #tab-home .tpt-timer-stack .tpt-session-refresh-row {
     width: 100%;
     max-width: 100%;
     margin: 0;
@@ -3367,15 +3385,16 @@ body:not(.mobile-view) .ch-name {
     box-sizing: border-box;
 }
 
-.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed {
+.mobile-view #tab-home .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed {
     flex: 1 1 auto;
     justify-content: flex-start;
     min-width: 0;
     max-width: none;
 }
 
-.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-name,
-.mobile-view .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-config {
+.mobile-view #tab-home .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-name,
+.mobile-view #tab-home .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-config,
+.mobile-view #tab-home .tpt-timer-stack .tpt-session-refresh-row .tpt-confirmed-armed {
     font-size: 0.78rem;
     font-weight: 400;
     font-family: monospace;
@@ -3385,7 +3404,7 @@ body:not(.mobile-view) .ch-name {
     text-align: left;
 }
 
-.mobile-view .tpt-current-take {
+.mobile-view #tab-home .tpt-current-take {
     text-align: left;
     align-self: stretch;
     width: 100%;
@@ -3397,7 +3416,7 @@ body:not(.mobile-view) .ch-name {
     letter-spacing: 0.05em;
 }
 
-.mobile-view .ch-strip-header .tpt-rec {
+.mobile-view #tab-home .ch-strip-header .tpt-rec {
     width: 156px;
     height: 156px;
     max-width: 156px;
@@ -3415,17 +3434,17 @@ body:not(.mobile-view) .ch-name {
     -webkit-overflow-scrolling: touch;
 }
 
-.mobile-view .ch-scale { display: none; }
-.mobile-view .ch-strip-header { padding: 4px 10px; }
-.mobile-view .channel-console {
+.mobile-view #tab-home .ch-scale { display: none; }
+.mobile-view #tab-home .channel-console {
     overflow-x: hidden;
-    width: 90%;
+    width: 100%;
     max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
+    margin-left: 0;
+    margin-right: 0;
     box-sizing: border-box;
+    justify-content: flex-start;
 }
-.mobile-view .ch-strips {
+.mobile-view #tab-home .ch-strips {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
@@ -3435,54 +3454,54 @@ body:not(.mobile-view) .ch-name {
     justify-content: stretch;
     box-sizing: border-box;
 }
-.mobile-view .ch-strip {
+.mobile-view #tab-home .ch-strip {
     width: auto;
     min-width: 0;
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: calc(5px * 1.1) calc(3px * 1.1);
     gap: calc(4px * 1.1);
-    align-items: center;
+    align-items: flex-start;
     /* No container-type here: cqi + min-width:0 caused missing labels on some touch/Chromium builds */
 }
 /* Reset desktop left-border-only rule — tile grid manages all borders */
-.mobile-view .ch-strip:first-child { border-left: 1px solid var(--border); }
+.mobile-view #tab-home .ch-strip:first-child { border-left: 1px solid var(--border); }
 
 /* Tile is a tap target — cursor pointer + press feedback */
-.mobile-view .ch-strip { cursor: pointer; }
-.mobile-view .ch-strip:active { background: rgba(244,67,54,0.12); }
-.mobile-view .ch-strip--disarmed:active { background: rgba(255,255,255,0.06); }
+.mobile-view #tab-home .ch-strip { cursor: pointer; }
+.mobile-view #tab-home .ch-strip:active { background: rgba(244,67,54,0.12); }
+.mobile-view #tab-home .ch-strip--disarmed:active { background: rgba(255,255,255,0.06); }
 
 /* Hide VU meters, dB readout, and OSC badges in tile mode */
-.mobile-view .ch-meter-bar,
-.mobile-view .ch-db-val,
-.mobile-view .ch-badges { display: none; }
+.mobile-view #tab-home .ch-meter-bar,
+.mobile-view #tab-home .ch-db-val,
+.mobile-view #tab-home .ch-badges { display: none; }
 
 /* Muted tile: dim (no bar overlay) */
-.mobile-view .ch-strip--muted { opacity: 0.4; }
-.mobile-view .ch-strip--muted::after { display: none; }
+.mobile-view #tab-home .ch-strip--muted { opacity: 0.4; }
+.mobile-view #tab-home .ch-strip--muted::after { display: none; }
 
 /* Mobile tiles: horizontal name on top; mid row collapses to label only */
-.mobile-view .ch-strip-mid {
+.mobile-view #tab-home .ch-strip-mid {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
     width: 100%;
     flex: 1 1 auto;
     min-height: 0;
     gap: 2px;
 }
-.mobile-view .ch-strip-meter-col {
+.mobile-view #tab-home .ch-strip-meter-col {
     display: none;
 }
 
 /* Tile name: fixed rem so labels always paint on Pi / older WebKit (avoid cqi here) */
-.mobile-view .ch-name {
+.mobile-view #tab-home .ch-name {
     writing-mode: horizontal-tb;
     text-orientation: mixed;
     font-size: 0.68rem;
-    text-align: center;
+    text-align: left;
     width: 100%;
     max-width: 100%;
     flex: 0 0 auto;
@@ -3494,7 +3513,7 @@ body:not(.mobile-view) .ch-name {
 }
 
 /* Long names: left-align and scroll back and forth */
-.mobile-view .ch-name.ch-name--scroll {
+.mobile-view #tab-home .ch-name.ch-name--scroll {
     text-align: left;
     animation: ch-name-marquee 3s ease-in-out 0.8s infinite alternate;
 }
@@ -3504,23 +3523,26 @@ body:not(.mobile-view) .ch-name {
     80%, 100% { transform: translateX(var(--scroll-px, 0px)); }
 }
 
-.mobile-view .ch-num {
+.mobile-view #tab-home .ch-num {
     font-size: 0.58rem;
     flex-shrink: 0;
+    align-self: flex-start;
+    width: 100%;
+    text-align: left;
 }
 
 /* ── Arm button: hidden in tile mode — red top bar is the only indicator ──── */
-.mobile-view .ch-arm-btn { display: none; }
+.mobile-view #tab-home .ch-arm-btn { display: none; }
 
 /* ── Armed top bar: thicker and glows; wiggles when signal is detected ────── */
-.mobile-view .ch-strip.ch-strip--armed::before {
+.mobile-view #tab-home .ch-strip.ch-strip--armed::before {
     height: calc(3px * 1.1);
     background: var(--record-color);
     box-shadow: 0 1px 5px rgba(244,67,54,0.5);
     transition: none;
 }
 /* Wiggle the bar when signal present (class toggled by meters.js on m.element) */
-.mobile-view .ch-strip.ch-strip--armed.has-signal::before {
+.mobile-view #tab-home .ch-strip.ch-strip--armed.has-signal::before {
     animation: bar-wiggle 0.45s ease-in-out infinite alternate;
 }
 @keyframes bar-wiggle {

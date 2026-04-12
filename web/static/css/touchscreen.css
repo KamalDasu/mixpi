@@ -230,7 +230,7 @@ a, button, input, select, textarea, label,
 
     .ch-strip-header .tpt-buttons {
         flex-wrap: wrap;
-        justify-content: center;
+        justify-content: flex-start;
         flex-shrink: 0;
     }
     .tpt-session   { flex: 1 1 200px; min-width: 0; }

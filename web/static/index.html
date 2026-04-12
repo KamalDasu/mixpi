@@ -7,8 +7,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260431">
-    <link rel="stylesheet" href="css/touchscreen.css?v=20260440">
+    <link rel="stylesheet" href="css/style.css?v=20260433">
+    <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
 <div class="console-app">
@@ -237,7 +237,10 @@
                 <div class="tpt-session-refresh-row">
                     <div class="tpt-confirmed">
                         <span class="tpt-confirmed-name" id="tpt-confirmed-name" style="display:none"></span>
-                        <span class="tpt-confirmed-config" id="tpt-confirmed-config">—</span>
+                        <div class="tpt-confirmed-config-wrap">
+                            <span class="tpt-confirmed-config" id="tpt-confirmed-config">—</span>
+                            <span class="tpt-confirmed-armed" id="tpt-confirmed-armed"></span>
+                        </div>
                     </div>
                 </div>
                 <div id="tpt-current-take" class="tpt-current-take" aria-live="polite"></div>
@@ -513,6 +516,6 @@
 <script src="js/sessions.js"></script>
 <script src="js/routing.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/app.js?v=202604262"></script>
+<script src="js/app.js?v=202604263"></script>
 </body>
 </html>
