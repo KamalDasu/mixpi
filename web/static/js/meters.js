@@ -13,7 +13,7 @@ function _touchPrimaryDesktop() {
 }
 
 class LevelMeters {
-    constructor(containerId, channelCount, channelNames) {
+    constructor(containerId, channelCount, channelNames, onArmedChange) {
         this.container     = document.getElementById(containerId);
         this.channelCount  = channelCount;
         this.channelNames  = channelNames || [];
@@ -21,7 +21,15 @@ class LevelMeters {
         this._armed           = this._loadArmedState(channelCount);
         this._presetLocked    = false;
         this._presetAllowedSet = null;  // null = Custom (all channels allowed)
+        this._onArmedChange =
+            typeof onArmedChange === 'function' ? onArmedChange : null;
         this.init();
+    }
+
+    _notifyArmedChange() {
+        try {
+            if (this._onArmedChange) this._onArmedChange();
+        } catch (_) { /* ignore UI callback errors */ }
     }
 
     // ── Persistence ────────────────────────────────────────────────────────
@@ -176,11 +184,13 @@ class LevelMeters {
             // Tell the server to close this channel's file writer
             fetch(`/api/recording/channel/${idx + 1}`, { method: 'DELETE' })
                 .catch(() => {});
+            this._notifyArmedChange();
             return;
         }
         this._armed[idx] = !this._armed[idx];
         this._applyArmVisual(idx);
         this._saveArmedState();
+        this._notifyArmedChange();
     }
 
     _applyArmVisual(idx) {
@@ -203,12 +213,14 @@ class LevelMeters {
         }
         this.meters.forEach((_, i) => this._applyArmVisual(i));
         this._saveArmedState();
+        this._notifyArmedChange();
     }
 
     armNone() {
         this._armed.fill(false);
         this.meters.forEach((_, i) => this._applyArmVisual(i));
         this._saveArmedState();
+        this._notifyArmedChange();
     }
 
     /** Arm only channels startCh..endCh (1-based, inclusive), disarm the rest.
@@ -220,6 +232,7 @@ class LevelMeters {
         }
         this.meters.forEach((_, i) => this._applyArmVisual(i));
         this._saveArmedState();
+        this._notifyArmedChange();
     }
 
     getArmedChannels() {
@@ -309,6 +322,7 @@ class LevelMeters {
             this._armed[channelIndex] = false;
             this._applyArmVisual(channelIndex);
             this._saveArmedState();
+            this._notifyArmedChange();
         }
 
         // Rebuild badges

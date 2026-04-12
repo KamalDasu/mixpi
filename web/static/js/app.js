@@ -607,6 +607,7 @@ function initElements() {
     // Transport confirmed display
     elements.tptConfirmedName   = document.getElementById('tpt-confirmed-name');
     elements.tptConfirmedConfig = document.getElementById('tpt-confirmed-config');
+    elements.tptConfirmedArmed  = document.getElementById('tpt-confirmed-armed');
     elements.tptCurrentTake     = document.getElementById('tpt-current-take');
 }
 
@@ -1152,8 +1153,8 @@ function _updateConfirmedDisplay() {
         elements.tptConfirmedName.textContent = name;
         elements.tptConfirmedName.style.display = name ? '' : 'none';
     }
-    if (elements.tptConfirmedConfig) elements.tptConfirmedConfig.textContent =
-        `${tag} · ${armed} CH armed`;
+    if (elements.tptConfirmedConfig) elements.tptConfirmedConfig.textContent = tag;
+    if (elements.tptConfirmedArmed) elements.tptConfirmedArmed.textContent = `${armed} CH armed`;
     _updateTakeLine();
 }
 
@@ -1494,7 +1495,12 @@ async function loadConfig() {
         elements.settingAutostart.textContent = config.recording.auto_start.enabled ? 'Enabled' : 'Disabled';
 
         // Initialize meters with config names; OSC names will override via loadChannels()
-        meters = new LevelMeters('meters-container', config.audio.channels, config.channels.names);
+        meters = new LevelMeters(
+            'meters-container',
+            config.audio.channels,
+            config.channels.names,
+            _updateConfirmedDisplay
+        );
 
         // Update channel dropdown options with real channel count
         _updateChPresetDropdown(config.audio.channels);
