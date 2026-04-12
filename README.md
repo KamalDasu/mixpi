@@ -5,7 +5,7 @@ A professional multi-track USB audio recorder that runs on a Raspberry Pi 4/5. I
 > **Note:** MixPi is primarily developed and tested with the **Behringer XR18**. Support for other X Air, X32, and M32 models is provided based on their shared OSC and USB audio architecture.
 
 <div align="center">
-  <img src="docs/assets/desktop-ui.png" width="920" alt="MixPi Desktop Interface">
+  <img src="docs/assets/desktop-ui.png" width="841" height="621" alt="MixPi Desktop Interface">
   <br><br>
   <table>
     <tr>
