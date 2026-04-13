@@ -33,6 +33,11 @@ _web_settings: dict = {}
 _bounce_jobs: dict = {}   # str(recording_path) -> 'mixing' | 'done' | 'error'
 _bounce_lock = threading.Lock()
 
+# Browser GET /sessions/…/bounce only: linear gain on top of stereo_mix.wav (1.0 = unchanged).
+# Algorithmic bounces are already ~−1 dBFS peak; +1…+2 dB makes preview audibly louder.
+# Clipped to ±1.0 before PCM16 encode (same as turning up a digital fader).
+STEREO_BOUNCE_PLAYBACK_GAIN = 10 ** (1.5 / 20.0)  # +1.5 dB (~1.19×)
+
 # ---------------------------------------------------------------------------
 # Background USB playback (Play on Mixer)
 # ---------------------------------------------------------------------------
@@ -87,6 +92,59 @@ def _get_git_version() -> dict:
 
     ver = f"{sem_tag}-{date} ({short})" if date else f"{sem_tag} ({short})"
     return {'version': ver, 'hash': short, 'date': date, 'semver': sem_tag}
+
+
+def _is_raspberry_pi() -> bool:
+    """
+    True when this process runs on Raspberry Pi hardware.
+    Uses device-tree model (preferred on Pi OS) then /proc/cpuinfo fallback.
+    """
+    model_path = Path('/proc/device-tree/model')
+    try:
+        if model_path.is_file():
+            raw = model_path.read_bytes().split(b'\x00', 1)[0]
+            text = raw.decode('ascii', errors='ignore').lower()
+            if 'raspberry pi' in text:
+                return True
+    except Exception:
+        pass
+    try:
+        with open('/proc/cpuinfo', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                low = line.lower()
+                if low.startswith('model name') and 'aarch64' in low:
+                    continue
+                if 'bcm27' in low or 'bcm28' in low:
+                    return True
+                if 'raspberry pi' in low:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def _remote_addr_is_recorder_host(addr: str) -> bool:
+    """
+    True if addr is loopback or one of this machine's own IPs (from hostname -I).
+    Used for exit-kiosk UI and API: remote phones on the LAN do not match.
+    """
+    if not addr:
+        return False
+    if addr in ('127.0.0.1', '::1'):
+        return True
+    if addr.startswith('127.'):
+        return True
+    try:
+        result = subprocess.run(
+            ['hostname', '-I'], capture_output=True, text=True, timeout=3
+        )
+        if result.returncode == 0 and result.stdout:
+            own = {p for p in result.stdout.split() if p}
+            if addr in own:
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def _find_xr18_alsa_device() -> str:
@@ -395,13 +453,22 @@ def delete_session(session_name):
 def get_version():
     """Return build version derived from the current git HEAD (always fresh)."""
     try:
-        resp = jsonify(_get_git_version())
+        payload = _get_git_version()
+        payload['raspberry_pi'] = _is_raspberry_pi()
+        payload['client_on_recorder'] = _remote_addr_is_recorder_host(
+            request.remote_addr or ''
+        )
+        resp = jsonify(payload)
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
         resp.headers['Pragma'] = 'no-cache'
         return resp
     except Exception as e:
         logger.error(f"Error getting version: {e}")
-        return jsonify({'version': 'unknown', 'hash': '', 'date': ''})
+        return jsonify({
+            'version': 'unknown', 'hash': '', 'date': '',
+            'raspberry_pi': False,
+            'client_on_recorder': False,
+        })
 
 
 @api.route('/config', methods=['GET'])
@@ -964,6 +1031,7 @@ def stream_bounce(session_name):
     PCM_16 / ≤ 48 kHz so every browser can decode it.
     Supports HTTP Range requests for reliable seeking and buffering.
     """
+    import numpy as np
     import soundfile as sf
 
     recording_path = (storage_manager.storage_path / session_name).resolve()
@@ -980,6 +1048,9 @@ def stream_bounce(session_name):
         factor = sr // 48000
         data   = data[::factor]
         sr     = 48000
+    g = STEREO_BOUNCE_PLAYBACK_GAIN
+    if g != 1.0:
+        data = np.clip(data * g, -1.0, 1.0)
     return _serve_audio_wav(data, sr, 'stereo_mix.wav')
 
 
@@ -1357,18 +1428,7 @@ def _exit_kiosk_request_allowed() -> bool:
     """
     if _web_settings.get('allow_exit_kiosk_from_lan'):
         return True
-    addr = request.remote_addr or ''
-    if addr in ('127.0.0.1', '::1'):
-        return True
-    try:
-        result = subprocess.run(
-            ['hostname', '-I'], capture_output=True, text=True, timeout=3
-        )
-        if result.returncode == 0 and addr in result.stdout.split():
-            return True
-    except Exception:
-        pass
-    return False
+    return _remote_addr_is_recorder_host(request.remote_addr or '')
 
 
 @api.route('/system/exit-kiosk', methods=['POST'])

@@ -8,6 +8,12 @@ let socket;
 let recorder;
 let meters;
 
+/** From GET /api/version: true on Raspberry Pi hardware; false after fetch if not; null before first response. */
+let mixpiHostIsRaspberryPi = null;
+
+/** From GET /api/version: true when this browser's request came from the recorder (loopback / Pi's own IP), not a phone on Wi‑Fi. */
+let mixpiClientOnRecorder = null;
+
 // UI Elements
 const elements = {
     btnRecord: null,
@@ -29,6 +35,37 @@ const elements = {
     settingDevice: null,
 };
 
+/** Touch-primary UI: Pi touchscreen / tablet finger input, not mouse-first desktop. */
+function mixpiTouchPrimaryDisplay() {
+    try {
+        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    } catch (_) {
+        return false;
+    }
+}
+
+let _exitKioskMqBound = false;
+
+/** Show “Exit fullscreen browser” only on the Pi's own touchscreen (not a phone browsing to the Pi). */
+function syncExitKioskSectionVisibility() {
+    const el = document.getElementById('exit-kiosk-section');
+    if (!el) return;
+    const show = (
+        mixpiTouchPrimaryDisplay()
+        && mixpiHostIsRaspberryPi === true
+        && mixpiClientOnRecorder === true
+    );
+    el.toggleAttribute('hidden', !show);
+    if (_exitKioskMqBound) return;
+    _exitKioskMqBound = true;
+    try {
+        const mq = window.matchMedia('(hover: none) and (pointer: coarse)');
+        const onChange = () => syncExitKioskSectionVisibility();
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else mq.addListener(onChange);
+    } catch (_) { /* ignore */ }
+}
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('MusicPi Recorder starting...');
@@ -36,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initElements();
     initBuildVersion();  // fetch git hash and show in panel bar
     initViewToggle();    // mobile/desktop view toggle (must run before initTabs)
+    syncExitKioskSectionVisibility();
     initPageReload();    // full reload for kiosk / no keyboard
     initTabs();          // wire up bottom-panel tabs
     initDiscovery();     // network discovery panel
@@ -55,6 +93,10 @@ function initBuildVersion() {
     fetch('/api/version', { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
+            mixpiHostIsRaspberryPi = data.raspberry_pi === true;
+            mixpiClientOnRecorder = data.client_on_recorder === true;
+            syncExitKioskSectionVisibility();
+
             const el = document.getElementById('build-version');
             if (!el || !data.hash) return;
             const ver = data.semver || 'v1.0';
@@ -69,7 +111,11 @@ function initBuildVersion() {
             }
             el.textContent = tag;
         })
-        .catch(() => {});
+        .catch(() => {
+            mixpiHostIsRaspberryPi = false;
+            mixpiClientOnRecorder = false;
+            syncExitKioskSectionVisibility();
+        });
 }
 
 // ── HTTPS setup banner ────────────────────────────────────────────────────────
@@ -561,6 +607,7 @@ function initViewToggle() {
 
         // Re-check which channel names overflow in the new layout
         if (meters) requestAnimationFrame(() => meters.refreshAllNameScrolls());
+        syncExitKioskSectionVisibility();
     });
 }
 
