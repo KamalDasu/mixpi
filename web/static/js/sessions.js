@@ -50,6 +50,9 @@ class SessionsManager {
         this.shows.forEach(show => {
             container.appendChild(this._createShowGroup(show));
         });
+        if (typeof window.refreshSessionListHighlight === 'function') {
+            window.refreshSessionListHighlight();
+        }
         // Start bounce-status polling for any recording that is still mixing
         this.shows.forEach(show => {
             (show.recordings || []).forEach(rec => {
@@ -75,30 +78,60 @@ class SessionsManager {
 
         wrap.innerHTML = `
             <div class="show-header" onclick="sessionsManager.toggleShow('${safeName}')">
-                <span class="show-chevron">&#9660;</span>
-                <span class="show-title">${safeName}</span>
-                <button class="btn-download show-zip-btn" title="Download entire session as ZIP"
-                    onclick="event.stopPropagation(); sessionsManager.downloadSession('${safeName}')">
-                    &#8659; ZIP &middot; ${recCount} rec
-                </button>
-                <button class="btn-download show-zip-btn" title="Download only stereo mixes as ZIP"
-                    id="btn-mixes-zip-${this._safeId(show.name)}"
-                    onclick="event.stopPropagation(); sessionsManager._toggleFmt('${mixesFmtId}', this)">
-                    &#8659; Stereo Mixes ZIP
-                </button>
-                <span class="share-fmt-picker" id="${mixesFmtId}" style="display:none;" onclick="event.stopPropagation();">
-                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','wav')" title="Original quality WAV">WAV</button>
-                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','m4a')" title="AAC 256 kbps">M4A</button>
-                    <button onclick="sessionsManager.downloadMixesZip('${safeName}','mp3')" title="MP3 320 kbps">MP3</button>
-                </span>
-                <button class="btn-delete show-delete-btn" title="Delete entire session"
-                    onclick="event.stopPropagation(); sessionsManager.deleteSession('${safeName}')">
-                    &#128465;
-                </button>
+                <div class="show-header__top">
+                    <span class="show-chevron">&#9660;</span>
+                    <div class="show-header__title-cluster">
+                    <span class="show-title">${safeName}</span>
+                    </div>
+                    <button class="btn-delete show-delete-btn" title="Delete entire session"
+                        onclick="event.stopPropagation(); sessionsManager.deleteSession('${safeName}')">
+                        &#128465;
+                    </button>
+                </div>
+                <div class="show-header__downloads">
+                    <button class="btn-download show-zip-btn" title="Download entire session as ZIP"
+                        onclick="event.stopPropagation(); sessionsManager.downloadSession('${safeName}')">
+                        &#8659; ZIP &middot; ${recCount} rec
+                    </button>
+                    <button class="btn-download show-zip-btn" title="Download only stereo mixes as ZIP"
+                        id="btn-mixes-zip-${this._safeId(show.name)}"
+                        onclick="event.stopPropagation(); sessionsManager._toggleFmt('${mixesFmtId}', this)">
+                        &#8659; Stereo Mixes ZIP
+                    </button>
+                    <span class="share-fmt-picker" id="${mixesFmtId}" style="display:none;" onclick="event.stopPropagation();">
+                        <button onclick="sessionsManager.downloadMixesZip('${safeName}','wav')" title="Original quality WAV">WAV</button>
+                        <button onclick="sessionsManager.downloadMixesZip('${safeName}','m4a')" title="AAC 256 kbps">M4A</button>
+                        <button onclick="sessionsManager.downloadMixesZip('${safeName}','mp3')" title="MP3 320 kbps">MP3</button>
+                    </span>
+                </div>
             </div>
             ${show.notes ? `<div class="show-notes">${this._esc(show.notes)}</div>` : ''}
             <div class="show-recordings" id="show-body-${safeName}"></div>
         `;
+
+        const header = wrap.querySelector('.show-header');
+        const titleEl = wrap.querySelector('.show-title');
+        if (header && titleEl) {
+            const useBtn = document.createElement('button');
+            useBtn.type = 'button';
+            useBtn.className = 'show-use-session-btn';
+            useBtn.textContent = 'Use';
+            useBtn.title = 'Next recordings go to this session folder';
+            useBtn.setAttribute('aria-label', 'Use this session for next recording');
+            useBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (window.setActiveSessionFromList) {
+                    window.setActiveSessionFromList(show.name);
+                }
+            });
+            const currentBadge = document.createElement('span');
+            currentBadge.className = 'show-session-current-badge';
+            currentBadge.textContent = 'Current';
+            currentBadge.hidden = true;
+            currentBadge.setAttribute('aria-label', 'This session is selected for the next recording');
+            titleEl.after(useBtn);
+            useBtn.after(currentBadge);
+        }
 
         const body = wrap.querySelector('.show-recordings');
         if (!show.recordings || show.recordings.length === 0) {

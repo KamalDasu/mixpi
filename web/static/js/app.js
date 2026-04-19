@@ -14,6 +14,9 @@ let mixpiHostIsRaspberryPi = null;
 /** From GET /api/version: true when this browser's request came from the recorder (loopback / Pi's own IP), not a phone on Wi‑Fi. */
 let mixpiClientOnRecorder = null;
 
+/** Last session folder name confirmed with Apply — drives confirm-on-change for Apply. */
+let _sessionNameAtLastApply = '';
+
 // UI Elements
 const elements = {
     btnRecord: null,
@@ -83,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     recorder._initTimeline();   // draw idle waveform on load
     initWebSocket();
     setupEventListeners();
+    _syncSkipSilenceWarnCheckbox();
     syncRecordTransportButton();
     loadConfig();
     loadStorageLocations();  // populate STORAGE dropdown (includes write-speed benchmark)
@@ -174,6 +178,13 @@ function _xairMixerSVG(model) {
 </svg>`;
 }
 
+/** Rack glyph always visible — avoids empty #disc-xair-icon (CSS :empty would hide it). */
+function _setMixerDiscoveryIcon(iconEl, model, title) {
+    if (!iconEl) return;
+    iconEl.innerHTML = _xairMixerSVG(model || '');
+    if (typeof title === 'string') iconEl.title = title;
+}
+
 /** Label for mixer dropdown / discovery (name or model, plus IP). */
 function _mixerDiscoveryLabel(m) {
     const name = (m.name || '').trim();
@@ -183,12 +194,24 @@ function _mixerDiscoveryLabel(m) {
 }
 
 const discovery = {
-    _scanning: false,
+    /** In-flight /api/discover — aborted when a new scan starts so manual ↻ always works. */
+    _discoverAbort: null,
     _found: false,        // true once a mixer has been confirmed via OSC
     _retryTimer: null,    // interval handle for OSC retry-when-not-found
     _usbTimer:   null,    // interval handle for USB polling
     _lastMixers: [],      // last sorted /discover list (for icons after select change)
     _oscMixerIp: '',      // last IP we connected via UI
+    /** Last JSON from GET /api/devices/usb — drives REC enable when idle. */
+    _lastUsb: null,
+
+    _loadOscMixerIpFromStorage() {
+        try {
+            const raw = localStorage.getItem('musicpi_prerecord');
+            if (!raw) return;
+            const j = JSON.parse(raw);
+            if (j.oscMixerIp) this._oscMixerIp = String(j.oscMixerIp);
+        } catch (_e) { /* ignore */ }
+    },
 
     async loadNetwork() {
         try {
@@ -227,10 +250,13 @@ const discovery = {
                 const tip = `${model} — ${mix.name || ip}${fw}`;
                 icon.title = tip;
                 if (xair) xair.title = tip;
+            } else if (icon) {
+                _setMixerDiscoveryIcon(icon, '', 'XAir');
             }
             if (cd.connected) {
                 this._oscMixerIp = ip;
                 setTimeout(() => loadChannels(), 500);
+                _savePrerecordState();
             }
         } catch (_) {}
     },
@@ -250,8 +276,11 @@ const discovery = {
     },
 
     async scan(isManual = false) {
-        if (this._scanning) return;
-        this._scanning = true;
+        try {
+            this._discoverAbort?.abort();
+        } catch (_e) { /* ignore */ }
+        const ac = new AbortController();
+        this._discoverAbort = ac;
 
         const dot  = document.getElementById('disc-xair-dot');
         const val  = document.getElementById('disc-xair-val');
@@ -266,15 +295,26 @@ const discovery = {
                 val.textContent = 'Searching…';
             }
             this._setMixerUiMode(false);
-            if (icon) { icon.innerHTML = ''; icon.title = ''; }
+            _setMixerDiscoveryIcon(icon, '', 'Searching for mixer…');
             if (xair) xair.title = '';
         }
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
+        const clientTimeoutMs = 12000;
+        const tOut = setTimeout(() => {
+            try {
+                ac.abort();
+            } catch (_e) { /* ignore */ }
+        }, clientTimeoutMs);
+
         try {
-            const res = await fetch('/api/discover?timeout=3',
-                { signal: AbortSignal.timeout(6000) });
+            const res = await fetch('/api/discover?timeout=3', {
+                signal: ac.signal,
+                cache: 'no-store',
+            });
+            if (this._discoverAbort !== ac) return;
             const d = await res.json();
+            if (this._discoverAbort !== ac) return;
             if (d.success && d.mixers && d.mixers.length > 0) {
                 const sorted = [...d.mixers].sort((a, b) =>
                     String(a.ip || '').localeCompare(String(b.ip || '')));
@@ -299,6 +339,7 @@ const discovery = {
                             : sorted[0].ip;
                         sel.value = preferred;
                         await this.connectOscToIp(sel.value);
+                        if (this._discoverAbort !== ac) return;
                     }
                 } else {
                     const m = sorted[0];
@@ -319,6 +360,7 @@ const discovery = {
                     if (icon) icon.title = tip;
                     if (xair) xair.title = tip;
                     await this.connectOscToIp(m.ip);
+                    if (this._discoverAbort !== ac) return;
                 }
 
                 if (!this._found) {
@@ -333,24 +375,35 @@ const discovery = {
                 if (dot)  dot.className = 'disc-dot disc-dot--error';
                 this._setMixerUiMode(false);
                 if (val)  val.textContent = 'Not found';
-                if (icon) { icon.innerHTML = ''; icon.title = ''; }
+                _setMixerDiscoveryIcon(icon, '', 'No XAir mixer on LAN');
                 if (xair) xair.title = '';
                 this._found = false;
                 if (!this._retryTimer) {
                     this._retryTimer = setInterval(() => this.scan(), 30000);
                 }
             }
-        } catch (_) {
+        } catch (e) {
+            if (this._discoverAbort !== ac) return;
+            if (e && e.name === 'AbortError') {
+                return;
+            }
             this._lastMixers = [];
             if (dot)  dot.className = 'disc-dot disc-dot--error';
             this._setMixerUiMode(false);
             if (val)  val.textContent = 'Error';
-            if (icon) { icon.innerHTML = ''; icon.title = ''; }
+            _setMixerDiscoveryIcon(icon, '', 'Mixer discovery failed');
             if (xair) xair.title = '';
             this._found = false;
         } finally {
-            this._scanning = false;
-            if (btn) { btn.disabled = false; btn.textContent = '↻'; }
+            clearTimeout(tOut);
+            const wasCurrent = this._discoverAbort === ac;
+            if (wasCurrent) {
+                this._discoverAbort = null;
+            }
+            if (btn && wasCurrent) {
+                btn.disabled = false;
+                btn.textContent = '↻';
+            }
         }
     },
 
@@ -359,8 +412,9 @@ const discovery = {
         const dot = document.getElementById('disc-usb-dot');
         const val = document.getElementById('disc-usb-val');
         try {
-            const res = await fetch('/api/devices/usb');
+            const res = await fetch('/api/devices/usb', { cache: 'no-store' });
             const d   = await res.json();
+            this._lastUsb = d;
             if (d.success && d.devices && d.devices.length > 0) {
                 const dev = d.devices[0];
                 // Show first matched device name, strip redundant vendor prefix
@@ -370,40 +424,72 @@ const discovery = {
                 // Mobile short: recording channel count only (e.g. "18ch")
                 const recCh     = dev.input_channels || 0;
                 const shortText = recCh ? `${recCh}ch` : name;
-                if (dot) dot.className = 'disc-dot disc-dot--ok';
+                const aligned = d.input_device_aligned;
+                if (dot) {
+                    dot.className = aligned === false
+                        ? 'disc-dot disc-dot--warn'
+                        : 'disc-dot disc-dot--ok';
+                }
                 if (val) {
                     val.dataset.full  = fullText;
                     val.dataset.short = shortText;
                     val.textContent   = fullText;
-                    val.title = `${dev.name} — ${dev.input_channels} in / ${dev.output_channels} out @ ${dev.sample_rate} Hz`;
+                    let tip = `${dev.name} — ${dev.input_channels} in / ${dev.output_channels} out @ ${dev.sample_rate} Hz`;
+                    if (aligned === false && d.active_input_name) {
+                        tip += `. Recording engine is using a different input: "${d.active_input_name}". Reconnect USB or check Audio device in config.`;
+                        val.textContent = `${fullText} ⚠`;
+                    }
+                    val.title = tip;
                 }
                 // If we found more than one mixer, hint it
                 if (d.devices.length > 1) {
-                    if (val) val.textContent += ` +${d.devices.length - 1}`;
+                    if (val && aligned !== false) val.textContent += ` +${d.devices.length - 1}`;
                 }
             } else {
                 if (dot) dot.className = 'disc-dot disc-dot--error';
-                if (val) val.textContent = 'Not connected';
-                if (val) val.title = 'No known mixer USB audio device found';
+                if (val) {
+                    delete val.dataset.full;
+                    delete val.dataset.short;
+                    val.textContent = 'Not connected';
+                    val.title = 'No known mixer USB audio device found';
+                }
             }
-        } catch (_) {
+        } catch (err) {
+            console.warn('pollUsb failed:', err);
+            this._lastUsb = { success: false, devices: [], input_device_aligned: null };
             if (dot) dot.className = 'disc-dot disc-dot--error';
-            if (val) val.textContent = 'Error';
+            if (val) {
+                delete val.dataset.full;
+                delete val.dataset.short;
+                val.textContent = 'Error';
+            }
+        }
+        try {
+            syncRecordTransportAvailability();
+        } catch (e) {
+            console.warn('syncRecordTransportAvailability:', e);
         }
     },
 
     init() {
+        this._loadOscMixerIpFromStorage();
         this.loadNetwork();
         this.scan();
         this.pollUsb();
-        // Re-check USB every 15 s (plug/unplug events)
-        this._usbTimer = setInterval(() => this.pollUsb(), 15000);
-        const btn = document.getElementById('btn-disc-scan');
-        if (btn) btn.addEventListener('click', () => {
-            this.scan(true);
-            this.pollUsb();
-            loadStorageLocations();   // re-detect USB drives on manual scan
+        // Re-check USB often enough that unplug/replug updates the UI without a long wait
+        this._usbTimer = setInterval(() => this.pollUsb(), 4000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') void this.pollUsb();
         });
+        const btn = document.getElementById('btn-disc-scan');
+        if (btn) {
+            btn.addEventListener('click', async () => {
+                // USB first — network scan can take 10+ s; user expects immediate USB rescan
+                await this.pollUsb();
+                await this.scan(true);
+                loadStorageLocations();   // re-detect USB drives on manual scan
+            });
+        }
         const mixSel = document.getElementById('disc-mixer-select');
         if (mixSel) {
             mixSel.addEventListener('change', () => {
@@ -411,8 +497,85 @@ const discovery = {
                 if (ip) this.connectOscToIp(ip);
             });
         }
+
+        const btnUsbRefresh = document.getElementById('btn-usb-refresh');
+        if (btnUsbRefresh) {
+            btnUsbRefresh.addEventListener('click', async () => {
+                btnUsbRefresh.disabled = true;
+                try {
+                    await this.pollUsb();
+                    loadStorageLocations();
+                } catch (e) {
+                    console.warn('USB refresh click:', e);
+                } finally {
+                    btnUsbRefresh.disabled = false;
+                }
+            });
+        }
     }
 };
+
+/**
+ * Enable REC only when WebSocket is up and /api/devices/usb reports a usable mixer input
+ * (device present and aligned with the recording engine). While recording, REC stays enabled to stop.
+ */
+function syncRecordTransportAvailability() {
+    const rec = elements.btnRecord;
+    if (!rec) return;
+    const recording =
+        (recorder && recorder.isRecording) ||
+        rec.classList.contains('recording');
+    const applyPending =
+        elements.btnApplyConfig && elements.btnApplyConfig.classList.contains('pending');
+
+    if (recording) {
+        rec.disabled = false;
+        if (!applyPending) rec.title = '';
+        syncRecordTransportButton();
+        return;
+    }
+
+    const wsUp =
+        (socket && socket.connected) ||
+        (elements.connectionStatus &&
+            elements.connectionStatus.classList.contains('connected'));
+    if (!wsUp) {
+        rec.disabled = true;
+        if (!applyPending) rec.title = '';
+        syncRecordTransportButton();
+        return;
+    }
+
+    const usb = discovery._lastUsb;
+    let inputReady = false;
+    if (usb == null) {
+        inputReady = false;
+    } else if (!usb.success) {
+        inputReady = false;
+    } else {
+        const hasDevice = usb.devices && usb.devices.length > 0;
+        const aligned = usb.input_device_aligned;
+        inputReady = hasDevice && aligned !== false;
+    }
+
+    rec.disabled = !inputReady;
+    if (!inputReady) {
+        if (!applyPending) {
+            const misaligned =
+                usb &&
+                usb.success &&
+                usb.devices &&
+                usb.devices.length > 0 &&
+                usb.input_device_aligned === false;
+            rec.title = misaligned
+                ? 'Recording engine is using a different input than this USB device. Reconnect USB or check Audio device in Settings.'
+                : 'No mixer USB audio input detected. Connect your interface.';
+        }
+    } else if (!applyPending) {
+        rec.title = '';
+    }
+    syncRecordTransportButton();
+}
 
 function initDiscovery() {
     discovery.init();
@@ -421,27 +584,11 @@ function initDiscovery() {
         el.addEventListener('click', handleMixerRefreshClick);
     });
 
-    // Restart service button — tries soft audio restart first, full service restart if that fails
-    const btnRestart = document.getElementById('btn-restart-service');
-    if (btnRestart) btnRestart.addEventListener('click', async () => {
-        const ok = await showConfirmRestart();
-        if (!ok) return;
-        btnRestart.disabled = true;
-        btnRestart.textContent = '…';
-        try {
-            const res = await fetch('/api/monitoring/restart', { method: 'POST' });
-            const d   = await res.json();
-            if (d.success) {
-                btnRestart.textContent = '✓';
-                setTimeout(() => window.location.reload(), 1200);
-                return;
-            }
-        } catch (_) {}
-        btnRestart.textContent = '…';
-        try {
-            await fetch('/api/system/restart', { method: 'POST' });
-        } catch (_) {}
-        setTimeout(() => window.location.reload(), 4000);
+    // Full systemd restart — same as `scripts/sync.sh` restart (reloads Python + ALSA/PortAudio).
+    document.querySelectorAll(
+        '#btn-restart-service, #btn-usb-restart-service'
+    ).forEach((btn) => {
+        btn.addEventListener('click', () => performMixPiSystemRestart(btn));
     });
 
     // Auto-refresh channel names/strip data every 15 s when not recording
@@ -450,9 +597,22 @@ function initDiscovery() {
     }, 15000);
 }
 
+async function performMixPiSystemRestart(buttonEl) {
+    const ok = await showConfirmRestart();
+    if (!ok) return;
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = '…';
+    }
+    try {
+        await fetch('/api/system/restart', { method: 'POST' });
+    } catch (_) {}
+    setTimeout(() => window.location.reload(), 4000);
+}
+
 function showConfirmRestart() {
     return new Promise(resolve => {
-        if (confirm('Restart the MusicPi service?\n\nThis will interrupt any active recording and reload the page.')) {
+        if (confirm('Restart the MixPi service?\n\nThis will interrupt any active recording and reload the page.')) {
             resolve(true);
         } else {
             resolve(false);
@@ -650,12 +810,66 @@ function initElements() {
     elements.selectStorage    = document.getElementById('select-storage');
     elements.btnApplyConfig      = document.getElementById('btn-apply-config');
     elements.btnRefreshStorage   = document.getElementById('btn-refresh-storage');
+    elements.chkSkipSilenceWarn  = document.getElementById('chk-skip-silence-warn');
     elements.inputNotes       = document.getElementById('input-notes');
     // Transport confirmed display
     elements.tptConfirmedName   = document.getElementById('tpt-confirmed-name');
     elements.tptConfirmedConfig = document.getElementById('tpt-confirmed-config');
     elements.tptConfirmedArmed  = document.getElementById('tpt-confirmed-armed');
     elements.tptCurrentTake     = document.getElementById('tpt-current-take');
+}
+
+/** Recent peak dBFS on armed channels — used before REC to detect silence / wrong USB routing. */
+const inputActivity = {
+    _samples: [],
+    MAX_AGE_MS: 3200,
+    /** Heuristic only (not calibration): peaks above this dBFS count as "signal" for the pre-REC check. */
+    THRESHOLD_DB: -60,
+    push(levelsData) {
+        if (!meters || !levelsData) return;
+        const peakArr = levelsData.peak || [];
+        const armed = meters.getArmedIndices();
+        let maxDb = -90;
+        for (let i = 0; i < peakArr.length; i++) {
+            if (armed && armed.size > 0 && !armed.has(i)) continue;
+            const p = peakArr[i] ?? -90;
+            if (p > maxDb) maxDb = p;
+        }
+        const now = Date.now();
+        this._samples.push({ t: now, db: maxDb });
+        const cutoff = now - this.MAX_AGE_MS;
+        this._samples = this._samples.filter((x) => x.t >= cutoff);
+    },
+    recentMaxDb() {
+        if (!this._samples.length) return -90;
+        return Math.max(...this._samples.map((s) => s.db));
+    },
+    hasMeaningfulSignal() {
+        return this.recentMaxDb() > this.THRESHOLD_DB;
+    },
+};
+
+const SESSION_SKIP_SILENCE_WARN_KEY = 'musicpi_skip_silence_warn';
+
+function _silenceWarnSkippedForTab() {
+    try {
+        return sessionStorage.getItem(SESSION_SKIP_SILENCE_WARN_KEY) === '1';
+    } catch (_e) {
+        return false;
+    }
+}
+
+function _setSilenceWarnSkippedForTab(on) {
+    try {
+        if (on) sessionStorage.setItem(SESSION_SKIP_SILENCE_WARN_KEY, '1');
+        else sessionStorage.removeItem(SESSION_SKIP_SILENCE_WARN_KEY);
+    } catch (_e) { /* ignore */ }
+}
+
+function _syncSkipSilenceWarnCheckbox() {
+    const el = elements.chkSkipSilenceWarn;
+    if (!el) return;
+    el.checked = _silenceWarnSkippedForTab();
 }
 
 function initWebSocket() {
@@ -669,7 +883,14 @@ function initWebSocket() {
         // Refresh channel names on reconnect — OSC may have come online since last load
         setTimeout(() => loadChannels(), 500);
     });
-    
+
+    socket.on('reconnect', () => {
+        setTimeout(() => {
+            void discovery.pollUsb();
+            void discovery.scan(false);
+        }, 600);
+    });
+
     socket.on('disconnect', () => {
         console.log('WebSocket disconnected');
         updateConnectionStatus(false);
@@ -678,6 +899,7 @@ function initWebSocket() {
     socket.on('levels', (data) => {
         if (meters) {
             meters.updateLevels(data);
+            inputActivity.push(data);
         }
         // Feed scrolling waveform — use loudest armed channel
         if (recorder) {
@@ -756,6 +978,7 @@ function setupEventListeners() {
             _updateConfirmedDisplay();
             _flashSaved(elements.inputSessionName);
             _updateTrackPlaceholder();
+            if (typeof refreshSessionListHighlight === 'function') refreshSessionListHighlight();
         });
     }
     if (elements.inputNotes) {
@@ -803,6 +1026,20 @@ function setupEventListeners() {
     if (btnRefreshSessions) {
         btnRefreshSessions.addEventListener('click', () => sessionsManager.loadSessions());
     }
+
+    window.addEventListener('pagehide', () => {
+        try {
+            const state = _buildPrerecordPayload();
+            const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+            navigator.sendBeacon('/api/ui-state', blob);
+        } catch (_e) { /* ignore */ }
+    });
+
+    if (elements.chkSkipSilenceWarn) {
+        elements.chkSkipSilenceWarn.addEventListener('change', () => {
+            _setSilenceWarnSkippedForTab(elements.chkSkipSilenceWarn.checked);
+        });
+    }
 }
 
 /** Arm channels based on channel-preset dropdown value. */
@@ -832,6 +1069,84 @@ function _applyChPreset(val) {
 
 /** Apply quality + channel selection and update transport bar summary. */
 const STORAGE_KEY = 'musicpi_prerecord';
+
+function _parseLocalPrerecord() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function _stateSavedAtMs(st) {
+    if (!st || !st.stateSavedAt) return 0;
+    const n = Date.parse(String(st.stateSavedAt));
+    return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * Merge server and browser ui_state using stateSavedAt when present.
+ * Legacy (no timestamps): if server still has default session1 but local has a real name, prefer local.
+ */
+function _mergePrerecordStates(serverS, localS) {
+    const server = serverS || {};
+    const local = localS || {};
+    const ts = (st) => _stateSavedAtMs(st);
+    let useServer = ts(server) >= ts(local);
+    if (ts(server) === 0 && ts(local) === 0) {
+        const snS = String(server.sessionName || '');
+        const snL = String(local.sessionName || '');
+        if (snL && snL !== 'session1' && (!snS || snS === 'session1')) {
+            useServer = false;
+        }
+    }
+    const pick = (key, def) => {
+        const sv = server[key];
+        const lv = local[key];
+        const sStr = sv != null ? String(sv) : '';
+        const lStr = lv != null ? String(lv) : '';
+        if (useServer) {
+            if (sStr.length) return sStr;
+            if (lStr.length) return lStr;
+            return def;
+        }
+        if (lStr.length) return lStr;
+        if (sStr.length) return sStr;
+        return def;
+    };
+    const pickOsc = () => {
+        const sv = String(server.oscMixerIp || '');
+        const lv = String(local.oscMixerIp || '');
+        if (useServer) {
+            if (sv.length) return sv;
+            return lv;
+        }
+        if (lv.length) return lv;
+        return sv;
+    };
+    return {
+        sessionName: pick('sessionName', 'session1'),
+        notes: pick('notes', ''),
+        chPreset: pick('chPreset', ''),
+        storagePath: pick('storagePath', ''),
+        quality: pick('quality', ''),
+        oscMixerIp: pickOsc(),
+    };
+}
+
+function _buildPrerecordPayload() {
+    return {
+        sessionName: (elements.inputSessionName && elements.inputSessionName.value) || '',
+        notes: (elements.inputNotes && elements.inputNotes.value) || '',
+        trackName: (elements.inputTrackName && elements.inputTrackName.value) || '',
+        chPreset: (elements.selectChPreset && elements.selectChPreset.value) || '',
+        storagePath: (elements.selectStorage && elements.selectStorage.value) || '',
+        quality: (elements.selectQuality && elements.selectQuality.value) || '',
+        oscMixerIp: (typeof discovery !== 'undefined' && discovery._oscMixerIp) || '',
+        stateSavedAt: new Date().toISOString(),
+    };
+}
 
 /**
  * Apply shared UI state pushed from the server when another browser/tab edits
@@ -896,14 +1211,7 @@ function _applyRemoteUiState(s) {
 
     if (touched) {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                sessionName : (elements.inputSessionName && elements.inputSessionName.value) || '',
-                notes       : (elements.inputNotes       && elements.inputNotes.value)       || '',
-                trackName   : (elements.inputTrackName   && elements.inputTrackName.value)   || '',
-                chPreset    : (elements.selectChPreset   && elements.selectChPreset.value)   || '',
-                storagePath : (elements.selectStorage    && elements.selectStorage.value)    || '',
-                quality     : (elements.selectQuality    && elements.selectQuality.value)    || '',
-            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(_buildPrerecordPayload()));
         } catch (_e) {}
         _updateConfirmedDisplay();
         _updateTrackPlaceholder();
@@ -917,17 +1225,8 @@ function _applyRemoteUiState(s) {
  * Also mirrors to localStorage as a fast offline fallback.
  */
 function _savePrerecordState() {
-    const state = {
-        sessionName : (elements.inputSessionName && elements.inputSessionName.value) || '',
-        notes       : (elements.inputNotes       && elements.inputNotes.value)       || '',
-        trackName   : (elements.inputTrackName   && elements.inputTrackName.value)   || '',
-        chPreset    : (elements.selectChPreset   && elements.selectChPreset.value)   || '',
-        storagePath : (elements.selectStorage    && elements.selectStorage.value)    || '',
-        quality     : (elements.selectQuality    && elements.selectQuality.value)    || '',
-    };
-    // localStorage — instant, no network
+    const state = _buildPrerecordPayload();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_e) {}
-    // Server — shared across all browsers (fire-and-forget)
     fetch('/api/ui-state', {
         method:  'POST',
         headers: {'Content-Type': 'application/json'},
@@ -936,60 +1235,53 @@ function _savePrerecordState() {
 }
 
 /**
- * Load UI state from the server, then fall back to localStorage.
- * Called once on page load AFTER presetManager.load() sets the active quality.
+ * Load UI state from the server, merge with localStorage (last-write wins),
+ * then apply. Called once on page load AFTER presetManager.load().
  */
 async function _restorePrerecordState() {
-    let s = {};
+    let serverS = {};
     let serverHasData = false;
-
-    // 1. Try server first (shared state)
     try {
         const res  = await fetch('/api/ui-state');
         const data = await res.json();
         if (data.success && data.state && Object.keys(data.state).length > 0) {
-            s = data.state;
+            serverS = data.state;
             serverHasData = true;
         }
     } catch (_e) {}
 
-    // 2. Fall back to localStorage if server returned nothing
-    if (!serverHasData) {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) s = JSON.parse(raw);
-        } catch (_e) {}
-    }
+    const localS = _parseLocalPrerecord();
+    const s = _mergePrerecordStates(serverHasData ? serverS : {}, localS);
 
-    // Apply: session name (default to 'session1' so the show folder always has a name)
-    if (elements.inputSessionName)
+    if (elements.inputSessionName) {
         elements.inputSessionName.value = s.sessionName || 'session1';
-    // Apply: notes
-    if (s.notes && elements.inputNotes)
+    }
+    if (s.notes != null && elements.inputNotes) {
         elements.inputNotes.value = s.notes;
-    // Apply: track/song name (do NOT restore — should be blank for each new page load
-    // so the engineer is prompted to enter the next song name; placeholder shows auto-number)
-    if (elements.inputTrackName)
+    }
+    if (elements.inputTrackName) {
         elements.inputTrackName.value = '';
-    // Apply: channel preset + arm channels
+    }
     if (s.chPreset && elements.selectChPreset) {
         elements.selectChPreset.value = s.chPreset;
         _applyChPreset(s.chPreset);
     }
-    // Apply: quality — only if it differs from server's active preset.
-    // presetManager.load() already set the correct quality from /api/presets;
-    // don't auto-apply — user must click Apply to change it.
     if (s.quality && elements.selectQuality && s.quality !== presetManager.activeId) {
         elements.selectQuality.value = s.quality;
     }
 
-    // If server had no ui_state.json yet, bootstrap it now so the next
-    // browser to load gets the same values (e.g. session name from localStorage).
+    _sessionNameAtLastApply = (elements.inputSessionName && elements.inputSessionName.value.trim()) || '';
+
+    if (s.oscMixerIp) {
+        discovery._oscMixerIp = String(s.oscMixerIp);
+        void discovery.connectOscToIp(discovery._oscMixerIp);
+    }
+
     if (!serverHasData) {
         _savePrerecordState();
     }
-    // Storage: loadStorageLocations() already restores this via server active flag
-    // + the storagePath saved here. No extra call needed.
+
+    if (typeof refreshSessionListHighlight === 'function') refreshSessionListHighlight();
 }
 
 /** Server's currently-active storage path — set by loadStorageLocations(). */
@@ -1080,6 +1372,55 @@ function _updateTakeLine() {
     el.textContent = v ? `Next take: ${v}` : `Next take: ${ph}`;
 }
 
+/**
+ * Mark the show row that matches the current SESSION input (for next recording folder).
+ */
+function refreshSessionListHighlight() {
+    const cur = (elements.inputSessionName && elements.inputSessionName.value.trim()) || '';
+    const rec = typeof recorder !== 'undefined' && recorder && recorder.isRecording;
+    document.querySelectorAll('#sessions-list .show-group').forEach((g) => {
+        const sn = g.dataset.show || '';
+        const match = !!cur && sn.toLowerCase() === cur.toLowerCase();
+        g.classList.toggle('show-group--active-session', match);
+        if (match) g.setAttribute('aria-current', 'true');
+        else g.removeAttribute('aria-current');
+
+        const btn = g.querySelector('.show-use-session-btn');
+        const badge = g.querySelector('.show-session-current-badge');
+        if (btn) {
+            btn.hidden = match;
+            btn.disabled = !!rec && !match;
+        }
+        if (badge) badge.hidden = !match;
+    });
+}
+
+/**
+ * Called from Recordings list: set the active session folder for the next take.
+ * @param {string} name Show folder name (as returned by /api/sessions).
+ */
+function setActiveSessionFromList(name) {
+    if (name == null || typeof name !== 'string') return;
+    if (recorder && recorder.isRecording) {
+        alert('Cannot change session while recording.');
+        return;
+    }
+    const s = name.trim();
+    if (!s) return;
+    if (elements.inputSessionName) {
+        elements.inputSessionName.value = s;
+    }
+    _sessionNameAtLastApply = s;
+    _savePrerecordState();
+    _updateConfirmedDisplay();
+    _updateTrackPlaceholder();
+    if (elements.inputSessionName) _flashSaved(elements.inputSessionName);
+    refreshSessionListHighlight();
+}
+
+window.refreshSessionListHighlight = refreshSessionListHighlight;
+window.setActiveSessionFromList = setActiveSessionFromList;
+
 /** Briefly highlight an input to confirm it auto-saved. */
 function _flashSaved(el) {
     if (!el) return;
@@ -1133,13 +1474,25 @@ function _syncApplyButtonState() {
         btn.textContent = '✓';
         btn.disabled = false;
         _clearRecordBlocked();
+        syncRecordTransportAvailability();
     } else {
         _markApplyPending();
+        syncRecordTransportAvailability();
     }
 }
 
 async function handleApplyConfig() {
     const btn = elements.btnApplyConfig;
+    const nameNow = (elements.inputSessionName && elements.inputSessionName.value.trim()) || '';
+    if (nameNow !== _sessionNameAtLastApply) {
+        const ok = confirm(
+            `Apply will confirm quality and storage using session folder "${nameNow || 'session1'}" for new takes. Continue?`
+        );
+        if (!ok) {
+            _syncApplyButtonState();
+            return;
+        }
+    }
 
     // Loading state
     if (btn) {
@@ -1186,7 +1539,10 @@ async function handleApplyConfig() {
         btn.classList.add('applied');
         btn.disabled = false;
     }
+    _sessionNameAtLastApply = nameNow;
     _clearRecordBlocked();
+    void discovery.pollUsb();
+    syncRecordTransportAvailability();
 }
 
 /** Refresh the transport bar's confirmed session/config line. */
@@ -1257,8 +1613,19 @@ async function handleRecordClick() {
         const totalChannels = meters ? meters.channelCount : 18;
         if (armedChannels && armedChannels.length === 0) {
             alert('No channels are armed for recording.\nPress at least one REC button first.');
-            elements.btnRecord.disabled = false;
+            syncRecordTransportAvailability();
             return;
+        }
+
+        if (!_silenceWarnSkippedForTab() && !inputActivity.hasMeaningfulSignal()) {
+            const ok = confirm(
+                'No meaningful input was detected on armed channels in the last few seconds ' +
+                '(check USB routing to the mixer, gain/trim, or that sources are unmuted). Record anyway?'
+            );
+            if (!ok) {
+                syncRecordTransportAvailability();
+                return;
+            }
         }
 
         // Get song/track name
@@ -1287,17 +1654,17 @@ async function handleRecordClick() {
 
         // Update UI — keep REC button enabled so user can tap again to stop
         elements.btnRecord.classList.add('recording');
-        elements.btnRecord.disabled = false;
+        syncRecordTransportAvailability();
         if (elements.btnMarker) elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-        syncRecordTransportButton();
 
         clearMarkersList();
 
+        if (typeof refreshSessionListHighlight === 'function') refreshSessionListHighlight();
+
     } catch (error) {
         alert(`Failed to start recording: ${error.message}`);
-        elements.btnRecord.disabled = false;
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
     }
 }
 
@@ -1313,10 +1680,9 @@ async function handleStopClick() {
 
         // Update UI
         elements.btnRecord.classList.remove('recording');
-        elements.btnRecord.disabled = false;
         if (elements.btnMarker) elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
 
         // Clear the TRACK/SONG field — engineer should name the next song fresh
         if (elements.inputTrackName) {
@@ -1330,8 +1696,7 @@ async function handleStopClick() {
 
     } catch (error) {
         alert(`Failed to stop recording: ${error.message}`);
-        elements.btnRecord.disabled = false;
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
     }
 }
 
@@ -1348,19 +1713,29 @@ async function handleMarkerClick() {
     }
 }
 
+let _mixerRefreshInFlight = false;
+
 async function handleMixerRefreshClick() {
     const btns = document.querySelectorAll('.js-mixer-refresh');
     if (!btns.length) return;
-    if ([...btns].some((b) => b.disabled)) return;
+    if (_mixerRefreshInFlight) {
+        await discovery.pollUsb();
+        return;
+    }
+    _mixerRefreshInFlight = true;
     const prev = [...btns].map((b) => b.textContent);
     btns.forEach((b) => {
         b.disabled = true;
         b.textContent = '…';
     });
     try {
-        await loadChannels();
+        await discovery.pollUsb();
+        await loadChannels({ refresh: true });
         if (socket && socket.connected) socket.emit('reset_peaks');
+    } catch (e) {
+        console.warn('Mixer refresh:', e);
     } finally {
+        _mixerRefreshInFlight = false;
         btns.forEach((b, i) => {
             b.textContent = prev[i];
             b.disabled = false;
@@ -1488,15 +1863,15 @@ async function _startAutoRecording() {
         presetManager.lockDuringRecording(true);
 
         elements.btnRecord.classList.add('recording');
-        elements.btnRecord.disabled = false;
+        syncRecordTransportAvailability();
         if (elements.btnMarker) elements.btnMarker.disabled = false;
         elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-        syncRecordTransportButton();
 
         clearMarkersList();
         _updateTakeLine();
     } catch (err) {
         console.error('Auto-start recording failed:', err);
+        syncRecordTransportAvailability();
     }
 }
 
@@ -1516,10 +1891,9 @@ function handleStatusUpdate(data) {
         presetManager.lockDuringRecording(false);
 
         elements.btnRecord.classList.remove('recording');
-        elements.btnRecord.disabled = false;
         if (elements.btnMarker) elements.btnMarker.disabled = true;
         elements.recordingStatus.textContent = 'Ready'; elements.recordingStatus.classList.remove('recording');
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
 
         recorder.isRecording = false;
         recorder.stopTimer();
@@ -1572,9 +1946,14 @@ async function loadConfig() {
     }
 }
 
-async function loadChannels() {
+async function loadChannels(options = {}) {
     try {
-        const res = await fetch('/api/channels');
+        let q = '';
+        if (options.refresh) {
+            const scope = options.scope === 'full' ? '&scope=full' : '&scope=names';
+            q = `?refresh=1${scope}`;
+        }
+        const res = await fetch(`/api/channels${q}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!data.success || !meters) return;
@@ -1690,10 +2069,9 @@ async function loadStatus() {
             if (status.recording.is_recording) {
                 recorder.takeDisplayName = (status.recording.take_display_name || '').trim();
                 elements.btnRecord.classList.add('recording');
-                elements.btnRecord.disabled = false;
+                syncRecordTransportAvailability();
                 if (elements.btnMarker) elements.btnMarker.disabled = false;
                 elements.recordingStatus.textContent = 'Recording'; elements.recordingStatus.classList.add('recording');
-                syncRecordTransportButton();
 
                 recorder.isRecording = true;
                 recorder.recordingStartTime = Date.now() - (status.recording.duration * 1000);
@@ -1706,6 +2084,8 @@ async function loadStatus() {
         
         // Load sessions
         sessionsManager.loadSessions();
+
+        syncRecordTransportAvailability();
         
     } catch (error) {
         console.error('Failed to load status:', error);
@@ -1718,15 +2098,13 @@ function updateConnectionStatus(connected) {
         elements.connectionStatus.classList.add('connected');
         elements.connectionStatus.classList.remove('disconnected');
         elements.connectionText.textContent = '';
-        elements.btnRecord.disabled = false;
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
     } else {
         elements.connectionStatus.classList.add('disconnected');
         elements.connectionStatus.classList.remove('connected');
         elements.connectionText.textContent = 'Disconnected';
-        elements.btnRecord.disabled = true;
         if (elements.btnMarker) elements.btnMarker.disabled = true;
-        syncRecordTransportButton();
+        syncRecordTransportAvailability();
     }
 }
 

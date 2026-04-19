@@ -71,6 +71,7 @@ body {
 /* ── Discovery / connection status bar ──────────────────────────────────── */
 .discovery-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0;
     min-height: 40px;
@@ -81,7 +82,29 @@ body {
     flex-shrink: 0;
     font-size: 0.9rem;
     letter-spacing: 0.04em;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+/* Touch / tablet: short legend — desktop relies on hover tooltips (title) */
+.discovery-bar-touch-hint {
+    display: none;
+    flex: 1 1 100%;
+    order: 100;
+    margin: 0;
+    padding: 5px 8px 7px;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(0, 0, 0, 0.35);
+}
+@media (hover: none) and (pointer: coarse) {
+    .discovery-bar-touch-hint {
+        display: block;
+    }
 }
 
 .disc-item {
@@ -117,6 +140,7 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     flex-shrink: 0;
 }
 .disc-dot--ok     { background: #22c55e; box-shadow: 0 0 5px #22c55e99; }
+.disc-dot--warn   { background: #eab308; box-shadow: 0 0 5px #eab30899; }
 .disc-dot--found  { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
 .disc-dot--search { background: #444; animation: disc-pulse 1.5s ease-in-out infinite; }
 .disc-dot--error  { background: var(--record-color); box-shadow: 0 0 5px var(--record-color); animation: disc-blink 1s ease-in-out infinite; }
@@ -196,7 +220,6 @@ body:not(.mobile-view) #disc-pi + .disc-sep {
     opacity: 0.9;
     flex-shrink: 0;
 }
-.disc-device-icon:empty { display: none; }
 .disc-device-icon svg { display: block; }
 
 /* USB glyph on all viewports; Ethernet decorative only — mixer row uses rack .disc-device-icon */
@@ -265,7 +288,8 @@ body:not(.mobile-view) #disc-usb #disc-usb-dot { order: 1; }
 body:not(.mobile-view) #disc-usb .disc-icon-usb { order: 2; }
 body:not(.mobile-view) #disc-usb > .disc-discovery-row-top > .disc-label { order: 3; }
 body:not(.mobile-view) #disc-usb #disc-usb-val { order: 4; }
-body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
+body:not(.mobile-view) #disc-usb #btn-usb-refresh { order: 5; }
+body:not(.mobile-view) #disc-usb #btn-usb-restart-service { order: 6; }
 
 .disc-action-btn {
     flex-shrink: 0;
@@ -282,6 +306,7 @@ body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
     font-weight: 600;
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s, background 0.15s;
+    touch-action: manipulation;
 }
 .disc-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -555,6 +580,31 @@ body:not(.mobile-view) #disc-usb #btn-restart-service { order: 5; }
     border: 2px solid #444;
     box-sizing: border-box;
     padding: 0;
+}
+
+.prerecord-skip-silence {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 0.62rem;
+    line-height: 1.2;
+    color: #9ca3af;
+    cursor: pointer;
+    user-select: none;
+    width: 100%;
+}
+.prerecord-skip-silence input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.prerecord-skip-silence span {
+    flex: 1;
+    min-width: 0;
 }
 
 /* Stack label above its input (both modes) */
@@ -1850,11 +1900,17 @@ body:not(.mobile-view) .ch-name {
     margin-bottom: 14px;
     overflow: hidden;
 }
+.show-group--active-session {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(93, 222, 101, 0.35);
+    background: rgba(93, 222, 101, 0.06);
+}
 
 .show-header {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
     padding: 12px 16px;
     background: rgba(255,255,255,0.04);
     cursor: pointer;
@@ -1862,6 +1918,33 @@ body:not(.mobile-view) .ch-name {
     border-bottom: 1px solid var(--border);
 }
 .show-header:hover { background: rgba(255,255,255,0.07); }
+
+/* Row 1: title + Use + trash — row 2: ZIPs (keeps delete visible on narrow screens) */
+.show-header__top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+/* Keeps session name, Use, and Current badge adjacent; row flexes before delete */
+.show-header__title-cluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.show-header__title-cluster .show-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: 0;
+}
+.show-header__downloads {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
 
 .show-chevron {
     font-size: 0.65rem;
@@ -1878,15 +1961,54 @@ body:not(.mobile-view) .ch-name {
     white-space: nowrap;
     margin-right: 4px;
 }
+.show-use-session-btn {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(93, 222, 101, 0.45);
+    background: rgba(93, 222, 101, 0.12);
+    color: var(--accent);
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.show-use-session-btn:hover:not(:disabled) {
+    background: rgba(93, 222, 101, 0.22);
+    border-color: var(--accent);
+}
+.show-use-session-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.show-session-current-badge {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(93, 222, 101, 0.55);
+    background: rgba(93, 222, 101, 0.2);
+    color: var(--accent);
+    white-space: nowrap;
+}
 /* ZIP button sits right after the show name — compact, with rec count */
 .show-zip-btn {
     font-size: 0.72rem;
     padding: 4px 10px;
     flex-shrink: 0;
 }
-/* Delete icon — minimal, just the trash, pushed to the far right */
-.show-delete-btn {
+/* Delete icon — minimal, just the trash, pushed to the far right of the title row */
+.show-header__top .show-delete-btn {
     margin-left: auto;
+}
+.show-delete-btn {
     padding: 4px 8px;
     font-size: 0.8rem;
     opacity: 0.5;
@@ -2746,6 +2868,9 @@ body:not(.mobile-view) .ch-name {
     line-height: 1.45;
     margin: 0 0 4px 0;
 }
+.system-service-hint--tight {
+    margin-top: 8px;
+}
 
 .https-status-text {
     font-size: 0.9rem;
@@ -3216,7 +3341,10 @@ body:not(.mobile-view) .ch-name {
 .mobile-view .disc-discovery-row-top {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
+    align-content: flex-start;
+    justify-content: flex-start;
     gap: 6px;
     width: 100%;
     min-height: 30px;

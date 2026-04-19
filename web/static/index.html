@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260433">
+    <link rel="stylesheet" href="css/style.css?v=20260444">
     <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
@@ -103,10 +103,24 @@
                         <rect x="6.5" y="10.6" width="5" height="2" rx="0.5" fill="currentColor"/>
                         <line x1="9" y1="12.6" x2="9" y2="15.5" stroke="currentColor" stroke-width="1.5"/>
                     </svg>
-                    <span class="disc-device-icon" id="disc-xair-icon" title=""></span>
+                    <span class="disc-device-icon" id="disc-xair-icon" title="XAir"><svg viewBox="0 0 34 22" width="34" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="0.5" y="0.5" width="33" height="21" rx="2" fill="none" stroke="currentColor" stroke-width="1"/>
+  <line x1="5"  y1="4" x2="5"  y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="3"   y="9"   width="4" height="2.2" rx="0.4" fill="currentColor"/>
+  <line x1="11" y1="4" x2="11" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="9"   y="6.5" width="4" height="2.2" rx="0.4" fill="currentColor"/>
+  <line x1="17" y1="4" x2="17" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="15"  y="11"  width="4" height="2.2" rx="0.4" fill="currentColor"/>
+  <line x1="23" y1="4" x2="23" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="21"  y="7.5" width="4" height="2.2" rx="0.4" fill="currentColor"/>
+  <circle cx="29" cy="6"  r="1.4" fill="currentColor"/>
+  <circle cx="29" cy="10" r="1.4" fill="currentColor"/>
+  <text x="17" y="20.5" font-size="4.2" text-anchor="middle" fill="currentColor" font-family="monospace" font-weight="bold">XAIR</text>
+</svg></span>
                     <span class="disc-label">MIXER</span>
                     <button type="button" class="disc-action-btn disc-action-btn--scan" id="btn-disc-scan"
-                            title="Scan for mixer on network; also refreshes USB device list">↻</button>
+                            title="Find mixer on LAN (OSC). Then rescans USB audio and storage. Hover or long-press icons for help."
+                            aria-label="Scan network for mixer, then refresh USB audio and storage">↻</button>
                 </div>
                 <div class="disc-discovery-row-body">
                     <span class="disc-val" id="disc-xair-val">Searching…</span>
@@ -119,7 +133,7 @@
         <div class="disc-sep"></div>
 
         <div class="disc-item-group disc-item-group--usb">
-            <!-- USB: row-top = status + icon; row-body = verbose text + restart -->
+            <!-- USB: one ↻ rescan — service restart lives on System tab -->
             <div class="disc-item" id="disc-usb">
                 <div class="disc-discovery-row-top">
                     <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
@@ -139,14 +153,21 @@
                         <polygon points="7,2.5 5,7 9,7" fill="currentColor"/>
                     </svg>
                     <span class="disc-label">USB</span>
-                    <button type="button" class="disc-action-btn disc-action-btn--restart" id="btn-restart-service"
-                            title="Restart the MixPi recording service (use if no audio input is seen)">↻</button>
+                    <button type="button" class="disc-action-btn disc-action-btn--scan" id="btn-usb-refresh"
+                            title="Light refresh: ask the Pi for USB audio + storage again (does not restart MixPi). Use red ⟲ if the list still looks wrong."
+                            aria-label="Rescan USB audio devices and storage drives without restarting MixPi">↻</button>
+                    <button type="button" class="disc-action-btn disc-action-btn--restart" id="btn-usb-restart-service"
+                            title="Full restart: stops MixPi and starts it again — reloads USB/PortAudio like after sync. Stops any recording."
+                            aria-label="Restart MixPi service (full reload, same as System tab)">⟲</button>
                 </div>
                 <div class="disc-discovery-row-body">
                     <span class="disc-val" id="disc-usb-val">Checking…</span>
                 </div>
             </div>
         </div>
+        <p class="discovery-bar-touch-hint" id="discovery-bar-touch-hint">
+            <strong>Icons:</strong> blue ↻ = quick rescan · red ⟲ = full MixPi restart (use if USB status is stuck).
+        </p>
     </div><!-- /discovery-bar -->
 
     <!-- ── Home tab content — starts active; JS manages tab switching ────── -->
@@ -247,8 +268,8 @@
             </div>
             <button type="button"
                     class="ch-strip-header__refresh ch-strip-header__refresh--transport-end js-mixer-refresh"
-                    title="Refresh channel labels from mixer and reset peak holds"
-                    aria-label="Refresh channel labels and reset peaks">↻</button>
+                    title="Refresh channel labels, USB status, and reset peak holds"
+                    aria-label="Refresh channel labels, USB status, and reset peaks">↻</button>
             </div>
         </div>
         <div class="ch-strip-header__mixer-col ch-strip-header__mixer-col--in-transport">
@@ -276,8 +297,8 @@
                 <span class="ch-strip-header__label">MIXER</span>
                 <button type="button"
                         class="ch-strip-header__refresh ch-strip-header__refresh--mixer-corner js-mixer-refresh"
-                        title="Refresh channel labels from mixer and reset peak holds"
-                        aria-label="Refresh channel labels and reset peaks">↻</button>
+                        title="Refresh channel labels, USB status, and reset peak holds"
+                        aria-label="Refresh channel labels, USB status, and reset peaks">↻</button>
             </div>
         </div>
     </div>
@@ -362,6 +383,10 @@
                        title="Song / take name — used as the recording folder prefix. Leave blank for auto-numbering.">
             </div>
             <button id="btn-apply-config" class="prerecord-apply" title="Apply recording quality, channel &amp; storage selection">Apply</button>
+            <label class="prerecord-skip-silence" title="When checked, skip the low-input confirmation before Record for this browser tab (until you close the tab)">
+                <input type="checkbox" id="chk-skip-silence-warn">
+                <span>Skip low-input check (this tab)</span>
+            </label>
         </div>
 
     </div>
@@ -448,7 +473,17 @@
                                 </p>
                                 <button type="button" id="btn-exit-kiosk" class="btn btn-outline-accent">Exit fullscreen browser (show desktop)</button>
                             </div>
-                            <button id="btn-system-reboot" class="btn btn-outline-danger">Reboot Raspberry Pi</button>
+                            <p class="system-service-hint system-service-hint--tight">
+                                <strong>Restart MixPi service</strong> reloads the recorder if audio is stuck. Stops any recording and refreshes this page.
+                            </p>
+                            <button type="button" id="btn-restart-service" class="btn btn-outline-danger btn-restart-mixpi"
+                                    title="Full process restart — reloads USB/PortAudio. Stops any recording.">
+                                Restart MixPi service
+                            </button>
+                            <button type="button" id="btn-system-reboot" class="btn btn-outline-danger"
+                                    title="Reboot entire Raspberry Pi (not just MixPi). Use when hardware or USB is stuck.">
+                                Reboot Raspberry Pi
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -516,9 +551,9 @@
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="js/meters.js?v=20260416"></script>
 <script src="js/recorder.js?v=202604091"></script>
-<script src="js/sessions.js"></script>
+<script src="js/sessions.js?v=20260440"></script>
 <script src="js/routing.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/app.js?v=202604266"></script>
+<script src="js/app.js?v=202604280"></script>
 </body>
 </html>

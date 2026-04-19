@@ -87,7 +87,8 @@ While MixPi seamlessly records up to 32 channels from the X32/M32 X-USB expansio
 
 ### Mixer Integration
 - **Auto-discovery** — Scan button finds your mixer on the local network via OSC broadcast; no IP configuration needed
-- **Live channel names via OSC** — channel labels and mute states sync automatically from the mixer over your LAN or WiFi network using the OSC protocol
+- **USB mixer status** — mixer-class inputs are recognized using the same USB name profiles as auto-setup (X Air, X32/M32 family, Wing, etc.); the UI probes PortAudio so a powered-off interface is not reported as connected when ALSA still lists a stale device
+- **Live channel names via OSC** — channel labels and mute states sync automatically from the mixer over your LAN or WiFi network using the OSC protocol; the API can refresh only channel names for a fast label sync or a full strip snapshot on demand
 - **Routing panel** — view and adjust USB send routing directly from the web UI
 - **Mixer playback** — play back recorded sessions through the mixer's USB return channels
 
@@ -95,12 +96,12 @@ While MixPi seamlessly records up to 32 channels from the X32/M32 X-USB expansio
 - **USB drive detection** — automatically lists connected USB drives
 - **Format utility** — format drives to exFAT, ext4, or HFS+ directly from the web UI
 - **Write-speed benchmark** — verify drive is fast enough before a session
-- **Session browser** — browse, download (ZIP), and delete past recordings from the Recordings tab
+- **Session browser** — browse, download (ZIP), and delete past recordings from the Recordings tab; **Use** stays next to the session name while ZIP and Stereo Mixes actions sit on a second row so the trash control remains visible on narrow screens
 
 ### Web Interface
 - **Responsive desktop view** — full channel strips with VU meters, peak hold, dB readout, EQ badges
 - **Mobile view** — compact tile grid, tap-to-arm channels, animated signal indicator; auto-activates on viewports < 768 px
-- **Live discovery bar** — shows Pi hostname, mixer firmware/IP, and USB audio device with channel count
+- **Live discovery bar** — Pi hostname, mixer status, and USB/storage lines; on small screens the row wraps so controls stay reachable, and the mixer rack icon stays visible even when no mixer is found on the LAN
 - **Real-time level metering** — 50 ms update rate, 2-second peak hold
 
 ### Sharing & Export
