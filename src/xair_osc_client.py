@@ -455,6 +455,32 @@ class XAirOSCClient:
 
         return dict(self._strips)
 
+    def fetch_name_snapshot(self, usb_channels: int = 18) -> Dict[int, ChannelStrip]:
+        """
+        Query only ``/config/name`` for each channel (~one UDP round-trip per strip).
+        Use this for quick UI label refresh; mute/fader/EQ etc. stay from cache or
+        subscription pushes. Much faster than fetch_all().
+        """
+        if not self._connected:
+            return {}
+
+        self._channel_map = _build_channel_map(usb_channels)
+
+        for ch_num, prefix in self._channel_map:
+            r = self._sock.query(f'{prefix}/config/name')
+            new_name = str(r[0]) if r else ''
+            with self._lock:
+                strip = self._strips.get(ch_num)
+                if strip is None:
+                    strip = ChannelStrip(number=ch_num, osc_prefix=prefix)
+                strip.name = new_name
+                self._strips[ch_num] = strip
+
+        logger.info(
+            'Name snapshot: updated labels for %d channels', len(self._channel_map)
+        )
+        return dict(self._strips)
+
     def _fetch_strip(self, ch_num: int, prefix: str) -> ChannelStrip:
         """Query all parameters for one channel strip."""
         strip = ChannelStrip(number=ch_num, osc_prefix=prefix)

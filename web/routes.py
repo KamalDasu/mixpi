@@ -8,6 +8,7 @@ import json
 import logging
 import re
 
+from src.mixer_profiles import find_profile_by_usb_name
 from src.recording_paths import recording_take_display_name
 import socket
 import struct
@@ -576,14 +577,32 @@ def get_channels():
 
     Falls back to channel names from config.yaml when OSC is not connected.
     Response includes per-channel: name, mute, fader (dB), pan, phantom, gate, comp, EQ.
+
+    Query:
+      refresh=1 — re-query from the mixer (see scope).
+      scope=names — only channel names (~18 OSC queries). Fast for MIXER ↻ labels.
+      scope=full or omitted with refresh=1 — full strip snapshot + USB routing (slow).
+    Without refresh, a non-empty in-memory cache is returned for speed.
     """
     try:
+        force_refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
+        scope = (request.args.get('scope') or 'full').lower()
         if osc_client and osc_client.is_connected:
-            strips = osc_client.get_strips()
-            # Cache empty — OSC may have connected after initial fetch; re-query now
-            if not strips:
-                logger.info("Channel strip cache empty — re-fetching from mixer")
-                strips = osc_client.fetch_all(audio_engine.channels)
+            if force_refresh:
+                if scope == 'names' and osc_client.get_strips():
+                    logger.info(
+                        "GET /channels?refresh=1&scope=names — name snapshot only"
+                    )
+                    strips = osc_client.fetch_name_snapshot(audio_engine.channels)
+                else:
+                    logger.info("GET /channels?refresh=1 — full OSC snapshot from mixer")
+                    strips = osc_client.fetch_all(audio_engine.channels)
+            else:
+                strips = osc_client.get_strips()
+                # Cache empty — OSC may have connected after initial fetch; re-query now
+                if not strips:
+                    logger.info("Channel strip cache empty — re-fetching from mixer")
+                    strips = osc_client.fetch_all(audio_engine.channels)
             channels = []
             for i in range(1, audio_engine.channels + 1):
                 strip = strips.get(i)
@@ -1598,33 +1617,265 @@ def save_ui_state():
 # USB audio device detection
 # ---------------------------------------------------------------------------
 
-# Known mixer USB audio device name substrings (case-insensitive)
-_USB_MIXER_KEYWORDS = ['xr18', 'x-air', 'xair', 'x air', 'xr12', 'xr16', 'xr8', 'behringer']
+# Primary USB matching is find_profile_by_usb_name() — same usb_patterns as
+# src/mixer_profiles.py (X Air XR12/16/18, X18, X32 / Compact / Producer / Rack,
+# Wing, Midas M32 / M32R / M32C, etc.).
+# Extra substrings below only if profile match fails (odd ALSA names).
+_USB_MIXER_KEYWORDS_EXTRA = [
+    'xr18', 'x18', 'x-air', 'xair', 'x air', 'xr12', 'xr16', 'xr8', 'behringer',
+    'x32', 'x-32', 'x32compact', 'x32producer', 'x32rack',
+    'm32', 'm32r', 'm32c', 'midas',
+    'wing',
+]
+
+
+def _usb_device_is_mixer_class(dev_name: str) -> bool:
+    """True if PortAudio name matches a mixer profile or legacy hint."""
+    if find_profile_by_usb_name(dev_name):
+        return True
+    nl = dev_name.lower()
+    return any(kw in nl for kw in _USB_MIXER_KEYWORDS_EXTRA)
+
+
+def _is_portaudio_busy_error(err: str) -> bool:
+    e = err.lower()
+    return any(
+        s in e
+        for s in (
+            'busy',
+            'device or resource busy',
+            'ebusy',
+            'already',
+            'in use',
+            'stream is running',
+            'errno 16',
+            '-998',
+        )
+    )
+
+
+def _portaudio_input_probe_status(
+    sd, device_index: int, max_input_channels: int, samplerate: int
+) -> str:
+    """
+    Classify whether an input device is usable for the USB status line.
+
+    Returns:
+      'ok'   — PortAudio accepts at least one format (hardware responsive).
+      'busy' — Open failed because the device is in use (still present; e.g. recorder).
+      'gone' — No usable format / invalid device (treat as disconnected even if
+               ``query_devices`` still lists a ghost row — common after power-off).
+
+    Do **not** trust ``audio_engine.find_device() == index`` alone: after the
+    mixer powers off, ALSA may keep a stale enumeration that still matches the
+    configured name, which would falsely skip probing.
+    """
+    try:
+        m = int(max_input_channels)
+        if m <= 0:
+            return 'gone'
+        probe_ch = min(2, m)
+        sr = float(int(samplerate))
+        if not hasattr(sd, 'check_input_settings'):
+            try:
+                with sd.InputStream(
+                    device=device_index,
+                    channels=probe_ch,
+                    samplerate=sr,
+                    dtype='float32',
+                    blocksize=0,
+                ):
+                    pass
+                return 'ok'
+            except Exception as e:
+                if _is_portaudio_busy_error(str(e)):
+                    return 'busy'
+                return 'gone'
+
+        attempts = [
+            (probe_ch, sr, 'float32'),
+            (probe_ch, sr, 'int16'),
+            (probe_ch, 48000.0, 'float32'),
+            (probe_ch, 44100.0, 'float32'),
+            (1, sr, 'float32'),
+        ]
+        last_err = None
+        saw_busy = False
+        for ch, rate, dtype in attempts:
+            try:
+                sd.check_input_settings(
+                    device=device_index,
+                    channels=ch,
+                    samplerate=rate,
+                    dtype=dtype,
+                )
+                return 'ok'
+            except Exception as inner:
+                last_err = inner
+                es = str(inner)
+                if _is_portaudio_busy_error(es):
+                    saw_busy = True
+                logger.debug(
+                    'USB probe attempt dev=%s ch=%s sr=%s dtype=%s: %s',
+                    device_index,
+                    ch,
+                    rate,
+                    dtype,
+                    es,
+                )
+        if saw_busy:
+            logger.debug(
+                'USB probe: device %s reported busy — treating as present',
+                device_index,
+            )
+            return 'busy'
+        logger.debug(
+            'USB probe: device %s unavailable after retries: %s',
+            device_index,
+            last_err,
+        )
+        return 'gone'
+    except Exception as e:
+        if _is_portaudio_busy_error(str(e)):
+            return 'busy'
+        logger.debug(
+            'USB presence probe failed for device %s: %s', device_index, e
+        )
+        return 'gone'
+
 
 @api.route('/devices/usb', methods=['GET'])
 def get_usb_devices():
     """
     Scan for known mixer USB audio devices using sounddevice.
     Returns list of matched devices with channel/rate info.
+
+    Also reports whether the audio engine's current input device index matches
+    one of those devices (helps catch OSC \"connected\" while USB is on
+    another interface or disconnected).
+
+    Matching uses the same usb_patterns as mixer auto-detection (X Air, X18,
+    X32 family, M32 family, Wing, etc.); see src/mixer_profiles.py.
     """
     try:
         import sounddevice as sd
         devices = sd.query_devices()
         found = []
         for i, dev in enumerate(devices):
-            name_lower = dev['name'].lower()
-            if any(kw in name_lower for kw in _USB_MIXER_KEYWORDS):
+            if dev['max_input_channels'] <= 0:
+                continue
+            if _usb_device_is_mixer_class(dev['name']):
                 found.append({
-                    'index':          i,
-                    'name':           dev['name'],
-                    'input_channels': dev['max_input_channels'],
-                    'output_channels':dev['max_output_channels'],
-                    'sample_rate':    int(dev['default_samplerate']),
+                    'index':           i,
+                    'name':            dev['name'],
+                    'input_channels':  dev['max_input_channels'],
+                    'output_channels': dev['max_output_channels'],
+                    'sample_rate':     int(dev['default_samplerate']),
                 })
-        return jsonify({'success': True, 'devices': found})
+        # Prefer the highest channel-count match (main multitrack interface)
+        found.sort(key=lambda x: -x['input_channels'])
+
+        engine_dev_idx = None
+        try:
+            if audio_engine:
+                engine_dev_idx = audio_engine.find_device()
+        except Exception:
+            pass
+
+        # Require probe ok or busy — never skip probe when engine index matches:
+        # after power-off, ALSA can still list a ghost device that matches config.
+        validated = []
+        for entry in found:
+            try:
+                info = sd.query_devices(entry['index'])
+                ch = int(info.get('max_input_channels', 0) or 0)
+                if ch <= 0:
+                    continue
+                sr = int(info.get('default_samplerate', entry.get('sample_rate', 48000)))
+                st = _portaudio_input_probe_status(sd, entry['index'], ch, sr)
+                if st not in ('ok', 'busy'):
+                    continue
+                validated.append({
+                    **entry,
+                    'name': str(info.get('name', '') or entry.get('name', '')),
+                    'input_channels': ch,
+                    'output_channels': int(info.get('max_output_channels', 0) or 0),
+                    'sample_rate': sr,
+                })
+            except Exception:
+                continue
+        found = validated
+
+        # Keyword scan missed (odd ALSA name) — show engine device only if probe
+        # says ok/busy (same rules as above; no engine-index-only shortcut).
+        if not found and audio_engine:
+            try:
+                idx = audio_engine.find_device()
+                if idx is not None and idx >= 0:
+                    info = sd.query_devices(idx)
+                    ch = int(info.get('max_input_channels', 0) or 0)
+                    sr = int(info.get('default_samplerate', 48000))
+                    if ch >= 8:
+                        st = _portaudio_input_probe_status(sd, idx, ch, sr)
+                        if st in ('ok', 'busy'):
+                            found.append({
+                                'index':           idx,
+                                'name':            info.get('name', ''),
+                                'input_channels':  ch,
+                                'output_channels': int(info.get('max_output_channels', 0) or 0),
+                                'sample_rate':     sr,
+                            })
+            except Exception:
+                pass
+
+        active_idx = None
+        active_name = ''
+        try:
+            if audio_engine:
+                active_idx = audio_engine.find_device()
+            if active_idx is None:
+                di = sd.default.device[0]
+                if di is not None and int(di) >= 0:
+                    active_idx = int(di)
+            if active_idx is not None and active_idx >= 0:
+                info = sd.query_devices(active_idx)
+                active_name = str(info.get('name', '') or '')
+        except Exception:
+            pass
+
+        input_device_aligned = None
+        if found:
+            idx_set = {d['index'] for d in found}
+            input_device_aligned = (
+                active_idx is not None
+                and active_idx in idx_set
+            )
+        elif active_idx is not None:
+            input_device_aligned = False
+
+        resp = jsonify({
+            'success': True,
+            'devices': found,
+            'active_input_index': active_idx,
+            'active_input_name': active_name,
+            'input_device_aligned': input_device_aligned,
+        })
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
     except Exception as e:
         logger.warning(f"USB device scan error: {e}")
-        return jsonify({'success': False, 'error': str(e), 'devices': []})
+        resp = jsonify({
+            'success': False,
+            'error': str(e),
+            'devices': [],
+            'active_input_index': None,
+            'active_input_name': '',
+            'input_device_aligned': None,
+        })
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
 
 
 # ---------------------------------------------------------------------------
