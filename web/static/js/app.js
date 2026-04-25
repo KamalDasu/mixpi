@@ -498,20 +498,6 @@ const discovery = {
             });
         }
 
-        const btnUsbRefresh = document.getElementById('btn-usb-refresh');
-        if (btnUsbRefresh) {
-            btnUsbRefresh.addEventListener('click', async () => {
-                btnUsbRefresh.disabled = true;
-                try {
-                    await this.pollUsb();
-                    loadStorageLocations();
-                } catch (e) {
-                    console.warn('USB refresh click:', e);
-                } finally {
-                    btnUsbRefresh.disabled = false;
-                }
-            });
-        }
     }
 };
 
@@ -1054,6 +1040,7 @@ function _applyChPreset(val) {
         case 'all':         meters.armAll();                       break;
         case 'custom': /* leave REC buttons as-is */               break;
     }
+    meters.setChPreset(val);
     // Compute the allowed channel set (0-based indices) for this preset.
     // Channels inside the set stay freely toggleable; channels outside are greyed.
     // null = no restriction (Custom and full-range presets).
@@ -1719,7 +1706,6 @@ async function handleMixerRefreshClick() {
     const btns = document.querySelectorAll('.js-mixer-refresh');
     if (!btns.length) return;
     if (_mixerRefreshInFlight) {
-        await discovery.pollUsb();
         return;
     }
     _mixerRefreshInFlight = true;
@@ -1729,7 +1715,7 @@ async function handleMixerRefreshClick() {
         b.textContent = '…';
     });
     try {
-        await discovery.pollUsb();
+        // Channel strips only — USB status / rescan is the top-bar row (poll + red restart).
         await loadChannels({ refresh: true });
         if (socket && socket.connected) socket.emit('reset_peaks');
     } catch (e) {

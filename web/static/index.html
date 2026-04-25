@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260444">
+    <link rel="stylesheet" href="css/style.css?v=20260445">
     <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
@@ -133,7 +133,7 @@
         <div class="disc-sep"></div>
 
         <div class="disc-item-group disc-item-group--usb">
-            <!-- USB: one ↻ rescan — service restart lives on System tab -->
+            <!-- USB: red ⟲ restarts MixPi (reloads USB / PortAudio). Light rescan removed — it did not fix stuck USB. -->
             <div class="disc-item" id="disc-usb">
                 <div class="disc-discovery-row-top">
                     <span class="disc-dot disc-dot--search" id="disc-usb-dot"></span>
@@ -153,12 +153,9 @@
                         <polygon points="7,2.5 5,7 9,7" fill="currentColor"/>
                     </svg>
                     <span class="disc-label">USB</span>
-                    <button type="button" class="disc-action-btn disc-action-btn--scan" id="btn-usb-refresh"
-                            title="Light refresh: ask the Pi for USB audio + storage again (does not restart MixPi). Use red ⟲ if the list still looks wrong."
-                            aria-label="Rescan USB audio devices and storage drives without restarting MixPi">↻</button>
-                    <button type="button" class="disc-action-btn disc-action-btn--restart" id="btn-usb-restart-service"
-                            title="Full restart: stops MixPi and starts it again — reloads USB/PortAudio like after sync. Stops any recording."
-                            aria-label="Restart MixPi service (full reload, same as System tab)">⟲</button>
+                    <button type="button" class="disc-action-btn disc-action-btn--restart disc-action-btn--usb-restart" id="btn-usb-restart-service"
+                            title="Restart MixPi: reloads USB and PortAudio (like after sync). Stops any recording. Use if USB status is wrong or stuck."
+                            aria-label="Restart MixPi service to rescan USB audio">⟲</button>
                 </div>
                 <div class="disc-discovery-row-body">
                     <span class="disc-val" id="disc-usb-val">Checking…</span>
@@ -166,7 +163,7 @@
             </div>
         </div>
         <p class="discovery-bar-touch-hint" id="discovery-bar-touch-hint">
-            <strong>Icons:</strong> blue ↻ = quick rescan · red ⟲ = full MixPi restart (use if USB status is stuck).
+            <strong>USB:</strong> red ⟲ restarts MixPi to rescan the interface (page reload does not).
         </p>
     </div><!-- /discovery-bar -->
 
@@ -175,6 +172,9 @@
 
     <!-- ── Transport + desktop MIXER box; mobile: ↻ at right end of strip (desktop: MIXER ↻) ── -->
     <div class="ch-strip-header">
+        <div class="ch-strip-header__align">
+            <div class="ch-strip-header__scale-spacer" aria-hidden="true"></div>
+            <div class="ch-strip-header__main">
         <div class="ch-strip-header__transport" aria-label="Recording transport">
             <div class="tpt-buttons">
             <div class="tpt-btn-group">
@@ -268,8 +268,8 @@
             </div>
             <button type="button"
                     class="ch-strip-header__refresh ch-strip-header__refresh--transport-end js-mixer-refresh"
-                    title="Refresh channel labels, USB status, and reset peak holds"
-                    aria-label="Refresh channel labels, USB status, and reset peaks">↻</button>
+                    title="Refresh channel names and strip state from the mixer; reset peak holds"
+                    aria-label="Refresh channel names from mixer and reset peak meters">↻</button>
             </div>
         </div>
         <div class="ch-strip-header__mixer-col ch-strip-header__mixer-col--in-transport">
@@ -297,10 +297,12 @@
                 <span class="ch-strip-header__label">MIXER</span>
                 <button type="button"
                         class="ch-strip-header__refresh ch-strip-header__refresh--mixer-corner js-mixer-refresh"
-                        title="Refresh channel labels, USB status, and reset peak holds"
-                        aria-label="Refresh channel labels, USB status, and reset peaks">↻</button>
+                        title="Refresh channel names and strip state from the mixer; reset peak holds"
+                        aria-label="Refresh channel names from mixer and reset peak meters">↻</button>
             </div>
         </div>
+            </div><!-- /.ch-strip-header__main -->
+        </div><!-- /.ch-strip-header__align -->
     </div>
 
     <!-- ── Meter sine + recording waveform ───────────────────────────────── -->

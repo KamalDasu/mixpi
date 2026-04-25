@@ -39,6 +39,28 @@ _bounce_lock = threading.Lock()
 # Clipped to ±1.0 before PCM16 encode (same as turning up a digital fader).
 STEREO_BOUNCE_PLAYBACK_GAIN = 10 ** (1.5 / 20.0)  # +1.5 dB (~1.19×)
 
+# Extra dB on stereo mix share exports only (bounce/export, download-mixes zip) — not
+# bounce/download (DAW), not the file on disk. Overridden by web.stereo_mix_export_gain_db.
+_DEFAULT_STEREO_MIX_EXPORT_GAIN_DB = 4.0
+
+
+def _stereo_mix_export_gain_db() -> float:
+    try:
+        v = float(_web_settings.get('stereo_mix_export_gain_db', _DEFAULT_STEREO_MIX_EXPORT_GAIN_DB))
+    except (TypeError, ValueError):
+        v = _DEFAULT_STEREO_MIX_EXPORT_GAIN_DB
+    return max(0.0, v)
+
+
+def _ffmpeg_stereo_mix_export_filter_args() -> list[str]:
+    """Return ffmpeg args [-af, …] for listening-oriented exports, or [] if disabled."""
+    db = _stereo_mix_export_gain_db()
+    if db <= 0.0:
+        return []
+    # Limiter catches inter-sample peaks after the boost (AAC/MP3 / phone playback).
+    filt = f'volume={db}dB,alimiter=limit=1:attack=1:release=100'
+    return ['-af', filt]
+
 # ---------------------------------------------------------------------------
 # Background USB playback (Play on Mixer)
 # ---------------------------------------------------------------------------
@@ -873,15 +895,22 @@ def download_mixes_zip(session_name):
                             })
                             web.websocket.socketio.sleep(0)
                         
-                        if fmt == 'wav':
+                        af = _ffmpeg_stereo_mix_export_filter_args()
+                        if fmt == 'wav' and not af:
                             zf.write(bounce_path, arc_name)
                         else:
                             tmp_file = Path(tmpdir) / arc_name
-                            subprocess.run(
-                                ['ffmpeg', '-y', '-i', str(bounce_path),
-                                 '-c:a', codec, '-b:a', bitrate, str(tmp_file)],
-                                check=True, capture_output=True
-                            )
+                            if fmt == 'wav':
+                                cmd = [
+                                    'ffmpeg', '-y', '-i', str(bounce_path),
+                                    *af, '-c:a', 'pcm_s16le', str(tmp_file),
+                                ]
+                            else:
+                                cmd = [
+                                    'ffmpeg', '-y', '-i', str(bounce_path),
+                                    *af, '-c:a', codec, '-b:a', bitrate, str(tmp_file),
+                                ]
+                            subprocess.run(cmd, check=True, capture_output=True)
                             zf.write(tmp_file, arc_name)
 
         if not has_mixes:
@@ -1096,7 +1125,7 @@ def download_bounce(session_name):
 def export_bounce(session_name):
     """
     Export the stereo mix in a chosen format for sharing / AirDrop.
-    ?format=wav  — original WAV (no transcoding)
+    ?format=wav  — PCM stereo WAV (lossless; when stereo_mix_export_gain_db > 0, boosted via ffmpeg)
     ?format=m4a  — AAC 256 kbps inside an M4A container (small, plays everywhere)
     ?format=mp3  — MP3 320 kbps
     """
@@ -1118,12 +1147,15 @@ def export_bounce(session_name):
     if not bounce_path.exists():
         return jsonify({'success': False, 'message': 'Bounce not found'}), 404
 
-    if fmt == 'wav':
+    af = _ffmpeg_stereo_mix_export_filter_args()
+
+    if fmt == 'wav' and not af:
         return send_file(bounce_path, as_attachment=True,
                          download_name=f'{rec_name}.wav')
 
-    # Transcode via ffmpeg
+    # Transcode via ffmpeg (always when lossy; WAV when export gain is enabled)
     fmt_map = {
+        'wav': ('.wav', 'pcm_s16le', None, 'audio/wav'),
         'm4a': ('.m4a', 'aac',        '256k', 'audio/mp4'),
         'mp3': ('.mp3', 'libmp3lame', '320k', 'audio/mpeg'),
     }
@@ -1144,11 +1176,14 @@ def export_bounce(session_name):
         return response
 
     try:
-        subprocess.run(
-            ['ffmpeg', '-y', '-i', str(bounce_path),
-             '-c:a', codec, '-b:a', bitrate, tmp_name],
-            check=True, capture_output=True
-        )
+        if fmt == 'wav':
+            cmd = ['ffmpeg', '-y', '-i', str(bounce_path), *af, '-c:a', codec, tmp_name]
+        else:
+            cmd = [
+                'ffmpeg', '-y', '-i', str(bounce_path), *af,
+                '-c:a', codec, '-b:a', bitrate, tmp_name,
+            ]
+        subprocess.run(cmd, check=True, capture_output=True)
         return send_file(tmp_name, mimetype=mime, as_attachment=True,
                          download_name=f'{rec_name}{suffix}')
     except subprocess.CalledProcessError as e:

@@ -39,6 +39,10 @@
     --header-h:     44px;
     --transport-h:  56px;
     --scale-w:      22px;
+    /* Width of fader row (18 strips) — used to align MIXER box above channel console */
+    --ch-strip-cols:         18;
+    --ch-strip-target-px:    44px;
+    --ch-strips-mirror-w:    calc(var(--ch-strip-cols) * var(--ch-strip-target-px) + 8px);
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */
@@ -288,8 +292,7 @@ body:not(.mobile-view) #disc-usb #disc-usb-dot { order: 1; }
 body:not(.mobile-view) #disc-usb .disc-icon-usb { order: 2; }
 body:not(.mobile-view) #disc-usb > .disc-discovery-row-top > .disc-label { order: 3; }
 body:not(.mobile-view) #disc-usb #disc-usb-val { order: 4; }
-body:not(.mobile-view) #disc-usb #btn-usb-refresh { order: 5; }
-body:not(.mobile-view) #disc-usb #btn-usb-restart-service { order: 6; }
+body:not(.mobile-view) #disc-usb #btn-usb-restart-service { order: 5; }
 
 .disc-action-btn {
     flex-shrink: 0;
@@ -330,6 +333,28 @@ body:not(.mobile-view) #disc-usb #btn-usb-restart-service { order: 6; }
     color: #fff;
     background: rgba(229,115,115,0.2);
     border-color: #e57373;
+}
+
+/* USB row: single prominent restart (blue ↻ rescan removed) */
+.disc-action-btn--usb-restart {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    border-width: 2px;
+    border-radius: 6px;
+    color: #ff8a80;
+    border-color: #c62828;
+    background: rgba(198, 40, 40, 0.18);
+    box-shadow: 0 0 10px rgba(244, 67, 54, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.disc-action-btn--usb-restart:hover:not(:disabled) {
+    color: #fff;
+    background: rgba(229, 57, 53, 0.35);
+    border-color: #ff5252;
+    box-shadow: 0 0 14px rgba(244, 67, 54, 0.55);
 }
 
 /* ── Header bar ─────────────────────────────────────────────────────────── */
@@ -1171,6 +1196,45 @@ body:not(.mobile-view) #disc-usb #btn-usb-restart-service { order: 6; }
     background: var(--bg-console);
     border-bottom: 1px solid var(--border);
     border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+/* Mirror channel-console (scale + strips width): MIXER ↻ lines up with right edge of faders */
+.ch-strip-header__align {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    gap: 0;
+}
+.ch-strip-header__scale-spacer {
+    width: var(--scale-w);
+    flex-shrink: 0;
+    align-self: stretch;
+    min-height: 48px;
+    border-right: 1px solid var(--border);
+    box-sizing: border-box;
+}
+.ch-strip-header__main {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+    width: var(--ch-strips-mirror-w);
+    max-width: calc(100vw - var(--scale-w) - 40px);
+    flex: 0 1 auto;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.ch-strip-header__main > .ch-strip-header__transport {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.ch-strip-header__main > .ch-strip-header__mixer-col {
     flex-shrink: 0;
 }
 
@@ -3374,6 +3438,13 @@ body:not(.mobile-view) .ch-name {
     align-self: center;
     box-sizing: border-box;
 }
+.mobile-view .disc-action-btn--usb-restart {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    font-size: 1.25rem;
+}
 .mobile-view .disc-discovery-row-body {
     display: flex;
     flex-direction: row;
@@ -3441,6 +3512,23 @@ body:not(.mobile-view) .ch-name {
     row-gap: 8px;
     column-gap: 10px;
     padding: 4px 10px;
+}
+
+.mobile-view #tab-home .ch-strip-header__scale-spacer {
+    display: none;
+    width: 0;
+    min-height: 0;
+    border: none;
+}
+.mobile-view #tab-home .ch-strip-header__align {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+}
+.mobile-view #tab-home .ch-strip-header__main {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
 }
 
 .mobile-view #tab-home .ch-strip-header__transport {

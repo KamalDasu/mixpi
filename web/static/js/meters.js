@@ -21,6 +21,10 @@ class LevelMeters {
         this._armed           = this._loadArmedState(channelCount);
         this._presetLocked    = false;
         this._presetAllowedSet = null;  // null = Custom (all channels allowed)
+        /** Channel preset dropdown value — drives MAINL/MAINR labels on USB 17–18 */
+        this._chPreset = 'all';
+        /** Last names from OSC/API per index (used when not forcing MAINL/R) */
+        this._nameFromMixer = [];
         this._onArmedChange =
             typeof onArmedChange === 'function' ? onArmedChange : null;
         this.init();
@@ -53,6 +57,12 @@ class LevelMeters {
 
     // ── Init ───────────────────────────────────────────────────────────────
     init() {
+        this._nameFromMixer = Array(this.channelCount).fill('');
+        for (let i = 0; i < this.channelCount; i++) {
+            const cn = this.channelNames[i];
+            this._nameFromMixer[i] =
+                cn != null && String(cn).trim() !== '' ? String(cn).trim() : '';
+        }
         this.container.innerHTML = '';
         for (let i = 0; i < this.channelCount; i++) {
             const meter = this._createStrip(i);
@@ -83,10 +93,42 @@ class LevelMeters {
         this.meters.forEach(m => this._refreshNameScroll(m.label));
     }
 
-    _createStrip(idx) {
-        // Ch 17 (index 16) and Ch 18 (index 17) are always the XR18's Main L/R USB send
+    /** Presets where USB 17–18 are the desk stereo mix — not “18 independent lines”. */
+    _useMainLrUiLabels() {
+        const p = String(this._chPreset || 'all');
+        return p !== 'all' && p !== 'custom';
+    }
+
+    /**
+     * Visible strip name. Ch 17–18 show MAINL / MAINR unless preset is All 18 or Custom.
+     */
+    _composeDisplayName(idx) {
+        const ch = this.channelCount;
+        if (ch >= 18 && (idx === 16 || idx === 17) && this._useMainLrUiLabels()) {
+            return idx === 16 ? 'MAINL' : 'MAINR';
+        }
+        const fromMixer = this._nameFromMixer[idx];
+        if (fromMixer && String(fromMixer).trim() !== '') return String(fromMixer).trim();
         const _XR18_DEFAULTS = { 16: 'Main L', 17: 'Main R' };
-        const name = this.channelNames[idx] || _XR18_DEFAULTS[idx] || `Ch ${idx + 1}`;
+        const cfg = this.channelNames[idx];
+        if (cfg != null && String(cfg).trim() !== '') return String(cfg).trim();
+        return _XR18_DEFAULTS[idx] || `Ch ${idx + 1}`;
+    }
+
+    /** Call when the CHANNELS preset dropdown changes (after setPresetRange). */
+    setChPreset(val) {
+        this._chPreset = val != null ? String(val) : 'all';
+        if (!this.meters.length) return;
+        for (let i = 0; i < this.meters.length; i++) {
+            const d = this._composeDisplayName(i);
+            this.meters[i].label.textContent = d;
+            this.meters[i].label.title = d;
+        }
+        requestAnimationFrame(() => this.refreshAllNameScrolls());
+    }
+
+    _createStrip(idx) {
+        const name = this._composeDisplayName(idx);
 
         // Root strip
         const el = document.createElement('div');
@@ -310,10 +352,12 @@ class LevelMeters {
         if (channelIndex >= this.meters.length) return;
         const m = this.meters[channelIndex];
 
-        if (strip.name) {
-            m.label.textContent = strip.name;
-            m.label.title = strip.name;
+        if (strip.name !== undefined && strip.name !== null) {
+            this._nameFromMixer[channelIndex] = String(strip.name);
         }
+        const disp = this._composeDisplayName(channelIndex);
+        m.label.textContent = disp;
+        m.label.title = disp;
 
         m.element.classList.toggle('ch-strip--muted', !!strip.muted);
 
@@ -348,10 +392,17 @@ class LevelMeters {
     }
 
     updateChannelNames(names) {
-        this.channelNames = names;
-        const _XR18_DEFAULTS = { 16: 'Main L', 17: 'Main R' };
+        this.channelNames = names || [];
+        this.channelNames.forEach((n, i) => {
+            if (i < this._nameFromMixer.length) {
+                this._nameFromMixer[i] =
+                    n != null && String(n).trim() !== '' ? String(n).trim() : '';
+            }
+        });
         this.meters.forEach((m, i) => {
-            m.label.textContent = names[i] || _XR18_DEFAULTS[i] || `Ch ${i + 1}`;
+            const d = this._composeDisplayName(i);
+            m.label.textContent = d;
+            m.label.title = d;
         });
         requestAnimationFrame(() => this.refreshAllNameScrolls());
     }

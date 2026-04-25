@@ -26,6 +26,9 @@ web:
   debug: false          # set true only for local development
   # If true, POST /api/system/exit-kiosk works from any client (trusted LAN only).
   allow_exit_kiosk_from_lan: false
+  # Extra dB on stereo mix share exports (bounce/export, stereo-mix ZIP) for phone listening.
+  # Does not change bounce/download (DAW) or the stereo_mix.wav on disk. Set 0 to disable.
+  stereo_mix_export_gain_db: 4.0
 
 osc:
   xair_ip: ""               # leave empty for auto-discovery via UDP broadcast (recommended)

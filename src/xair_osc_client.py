@@ -41,6 +41,8 @@ logger = logging.getLogger('mixpi.osc_client')
 
 # How long to wait for a single OSC query response
 _QUERY_TIMEOUT_S = 0.4
+# Max wall time to collect batched /config/name replies (XR18 = 18 addresses)
+_NAME_SNAPSHOT_BATCH_DEADLINE_S = 1.0
 # /xremote expires after 10 s; renew every 8 s for safety
 _XREMOTE_INTERVAL_S = 8.0
 
@@ -457,17 +459,58 @@ class XAirOSCClient:
 
     def fetch_name_snapshot(self, usb_channels: int = 18) -> Dict[int, ChannelStrip]:
         """
-        Query only ``/config/name`` for each channel (~one UDP round-trip per strip).
-        Use this for quick UI label refresh; mute/fader/EQ etc. stay from cache or
-        subscription pushes. Much faster than fetch_all().
+        Query ``/config/name`` for each channel.
+
+        Sends all name queries back-to-back, then drains UDP for up to
+        ``_NAME_SNAPSHOT_BATCH_DEADLINE_S`` so replies can arrive in parallel
+        (much faster than 18 sequential round-trips on Wi-Fi). Any address still
+        missing after that window gets one classic query/retry.
         """
         if not self._connected:
             return {}
 
         self._channel_map = _build_channel_map(usb_channels)
 
+        addr_to_ch: Dict[str, Tuple[int, str]] = {}
         for ch_num, prefix in self._channel_map:
-            r = self._sock.query(f'{prefix}/config/name')
+            addr_to_ch[f'{prefix}/config/name'] = (ch_num, prefix)
+
+        pending = set(addr_to_ch.keys())
+        for addr in pending:
+            self._sock.send(addr)
+
+        deadline = time.monotonic() + _NAME_SNAPSHOT_BATCH_DEADLINE_S
+        while pending and time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            self._sock.settimeout(min(0.2, remaining))
+            try:
+                data, _ = self._sock.recvfrom(512)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                resp_addr, args = _decode_osc_message(data)
+            except Exception:
+                continue
+            if resp_addr not in pending:
+                continue
+            pending.discard(resp_addr)
+            ch_num, prefix = addr_to_ch[resp_addr]
+            new_name = str(args[0]) if args else ''
+            with self._lock:
+                strip = self._strips.get(ch_num)
+                if strip is None:
+                    strip = ChannelStrip(number=ch_num, osc_prefix=prefix)
+                strip.name = new_name
+                self._strips[ch_num] = strip
+
+        # Stragglers (packet loss / reorder past deadline)
+        for addr in list(pending):
+            ch_num, prefix = addr_to_ch[addr]
+            r = self._sock.query(addr)
             new_name = str(r[0]) if r else ''
             with self._lock:
                 strip = self._strips.get(ch_num)
