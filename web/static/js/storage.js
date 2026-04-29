@@ -354,6 +354,61 @@ const storageTab = {
         return cur.commit || '';
     },
 
+    /** True when HEAD is checked out at a semver stable tag (vX.Y.Z). */
+    _isOnStableTag(data) {
+        const tag = data.current && data.current.tag;
+        return !!(tag && /^v\d+\.\d+\.\d+$/.test(tag));
+    },
+
+    /**
+     * Primary status text when no newer stable tag is pending — emphasizes stable release vs main.
+     */
+    _upToDatePrimaryMessage(data) {
+        const ver = this._upToDateLabel(data);
+        if (this._isOnStableTag(data)) {
+            return ver ? `Up to date — stable release (${ver})` : 'Up to date — stable release';
+        }
+        const br = data.current && data.current.branch;
+        if (br === 'main') {
+            return ver ? `Up to date — on main (${ver})` : 'Up to date — on main';
+        }
+        return ver ? `Up to date (${ver})` : 'Up to date';
+    },
+
+    /** Commits-ahead summary for beta (main), with singular/plural commit. */
+    _formatBetaAhead(data) {
+        const b = data.beta;
+        if (!b || !b.available) {
+            return '';
+        }
+        const n = b.commits_ahead || 0;
+        const hash = (b.latest_commit || '').slice(0, 7);
+        const unit = n === 1 ? 'commit' : 'commits';
+        return `${n} ${unit} ahead (${hash})`;
+    },
+
+    /** Green strip below main status when origin/main is newer than HEAD (optional beta opt-in). */
+    _setUpdateBetaLine(data) {
+        const el = document.getElementById('update-status-beta-line');
+        if (!el) return;
+        if (!data || data.offline_mode || !data.beta || !data.beta.available) {
+            el.classList.add('hidden');
+            el.textContent = '';
+            return;
+        }
+        const tail = this._formatBetaAhead(data);
+        el.textContent = tail ? `Beta release available — ${tail}` : 'Beta release available';
+        el.classList.remove('hidden');
+    },
+
+    _hideUpdateBetaLine() {
+        const el = document.getElementById('update-status-beta-line');
+        if (el) {
+            el.classList.add('hidden');
+            el.textContent = '';
+        }
+    },
+
     /** Set status line: fixed "MixPi Updates:" prefix (HTML) + dynamic state text. */
     _setUpdateStatus(stateClass, stateText) {
         const wrap = document.getElementById('update-status');
@@ -427,6 +482,7 @@ const storageTab = {
         if (!statusWrap || !controlsEl) return;
 
         this._setUpdateStatus('checking', 'Checking…');
+        this._hideUpdateBetaLine();
         controlsEl.classList.add('hidden');
         if (checkBtn) {
             checkBtn.disabled = true;
@@ -443,11 +499,10 @@ const storageTab = {
 
             this._populateUpdateOptions(data);
 
-            // "Available" only when a newer stable tag or beta main exists — not merely when tags exist
             const stablePending = typeof data.stable_update_available === 'boolean'
                 ? data.stable_update_available
                 : (data.stable && data.stable.length > 0);
-            const hasUpdates = stablePending || (data.beta && data.beta.available);
+            const betaPending = !!(data.beta && data.beta.available);
 
             if (data.offline_mode) {
                 let statusText = `Offline — ${data.fetch_message}`;
@@ -455,18 +510,24 @@ const storageTab = {
                     statusText += ` (${data.stable.length} cached)`;
                 }
                 this._setUpdateStatus('offline', statusText);
+                this._hideUpdateBetaLine();
                 if (checkBtn) {
                     checkBtn.textContent = 'Retry Check (Online)';
                     checkBtn.classList.add('btn-warning');
                 }
-            } else if (hasUpdates) {
+            } else if (stablePending) {
                 this._setUpdateStatus('available', 'Available');
+                if (betaPending) {
+                    this._setUpdateBetaLine(data);
+                } else {
+                    this._hideUpdateBetaLine();
+                }
+            } else if (betaPending) {
+                this._setUpdateStatus('current', this._upToDatePrimaryMessage(data));
+                this._setUpdateBetaLine(data);
             } else {
-                const detail = this._upToDateLabel(data);
-                this._setUpdateStatus(
-                    'current',
-                    detail ? `Up to date (${detail})` : 'Up to date'
-                );
+                this._setUpdateStatus('current', this._upToDatePrimaryMessage(data));
+                this._hideUpdateBetaLine();
             }
 
             controlsEl.classList.remove('hidden');
@@ -483,6 +544,7 @@ const storageTab = {
 
         } catch (error) {
             console.error('Update check failed:', error);
+            this._hideUpdateBetaLine();
             const msg = error.message || String(error);
             this._setUpdateStatus(
                 'error',
@@ -548,7 +610,8 @@ const storageTab = {
                 betaInfo.innerHTML = 'Beta updates unavailable offline';
                 betaInfo.classList.remove('hidden');
             } else if (data.beta.available) {
-                betaInfo.innerHTML = `${data.beta.commits_ahead} commits ahead (${data.beta.latest_commit})`;
+                const ahead = this._formatBetaAhead(data);
+                betaInfo.textContent = ahead || 'Beta release available';
                 betaInfo.classList.remove('hidden');
             } else {
                 betaInfo.innerHTML = 'No beta updates available';
