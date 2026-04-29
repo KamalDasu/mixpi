@@ -38,6 +38,9 @@ const storageTab = {
         } catch (e) {
             list.innerHTML = `<p class="empty-message">Error loading drives: ${e.message}</p>`;
         }
+
+        // Initialize update functionality
+        this._initUpdateUI();
     },
 
     async rebootSystem() {
@@ -328,6 +331,594 @@ const storageTab = {
             btn.disabled         = false;
         }
     },
+
+    /** Initialize the update UI and wire up event handlers. */
+    async _initUpdateUI() {
+        const updateSection = document.querySelector('.system-update-section');
+        if (!updateSection) return;
+
+        // Wire up event handlers
+        const checkBtn = document.getElementById('check-updates-btn');
+        const applyBtn = document.getElementById('apply-update-btn');
+        const rollbackBtn = document.getElementById('rollback-btn');
+        const betaCheckbox = document.getElementById('beta-mode');
+        const stableSelect = document.getElementById('stable-versions');
+
+        if (checkBtn && !checkBtn._wired) {
+            checkBtn.addEventListener('click', () => this.checkForUpdates());
+            checkBtn._wired = true;
+        }
+
+        if (applyBtn && !applyBtn._wired) {
+            applyBtn.addEventListener('click', () => this.applyUpdate());
+            applyBtn._wired = true;
+        }
+
+        if (rollbackBtn && !rollbackBtn._wired) {
+            rollbackBtn.addEventListener('click', () => this.performRollback());
+            rollbackBtn._wired = true;
+        }
+
+        if (betaCheckbox && !betaCheckbox._wired) {
+            betaCheckbox.addEventListener('change', () => this._updateApplyButtonState());
+            betaCheckbox._wired = true;
+        }
+
+        if (stableSelect && !stableSelect._wired) {
+            stableSelect.addEventListener('change', () => this._updateApplyButtonState());
+            stableSelect._wired = true;
+        }
+
+        // Check PIN requirement and show/hide PIN entry
+        try {
+            const pinRes = await fetch('/api/system/update-pin-status', { cache: 'no-store' });
+            const pinData = await pinRes.json();
+            const pinEntry = document.getElementById('pin-entry');
+            
+            if (pinEntry) {
+                if (pinData.success && pinData.pin_required) {
+                    pinEntry.classList.remove('hidden');
+                } else {
+                    pinEntry.classList.add('hidden');
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to check PIN status:', e);
+        }
+
+        // Auto-check for updates on load
+        this.checkForUpdates();
+        
+        // Check for rollback availability
+        this._checkRollbackAvailability();
+    },
+
+    /** Check for available updates and populate the UI. */
+    async checkForUpdates() {
+        const statusEl = document.getElementById('update-status');
+        const controlsEl = document.getElementById('update-controls');
+        const checkBtn = document.getElementById('check-updates-btn');
+
+        if (!statusEl || !controlsEl) return;
+
+        // Update UI state
+        statusEl.textContent = 'Checking for updates...';
+        statusEl.className = 'update-status checking';
+        controlsEl.classList.add('hidden');
+        if (checkBtn) {
+            checkBtn.disabled = true;
+            checkBtn.textContent = 'Checking...';
+        }
+
+        try {
+            const response = await fetch('/api/system/updates/check', { cache: 'no-store' });
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Update check failed');
+            }
+
+            // Populate update options
+            this._populateUpdateOptions(data);
+
+            // Update status with offline awareness
+            const hasUpdates = data.stable.length > 0 || data.beta.available;
+            let statusText;
+            let statusClass;
+            
+            if (data.offline_mode) {
+                statusText = `Offline mode - ${data.fetch_message}`;
+                statusClass = 'update-status offline';
+                
+                // Show additional info about cached versions if available
+                if (data.stable.length > 0) {
+                    statusText += ` (${data.stable.length} cached version${data.stable.length !== 1 ? 's' : ''} available)`;
+                }
+                
+                // Make Check button more prominent when offline
+                if (checkBtn) {
+                    checkBtn.textContent = 'Retry Check (Online)';
+                    checkBtn.classList.add('btn-warning');
+                }
+            } else if (hasUpdates) {
+                statusText = 'Updates available';
+                statusClass = 'update-status available';
+            } else {
+                statusText = `Up to date (${data.current.describe || data.current.commit})`;
+                statusClass = 'update-status current';
+            }
+            
+            statusEl.textContent = statusText;
+            statusEl.className = statusClass;
+
+            controlsEl.classList.remove('hidden');
+            
+            // Show repository status warnings if any
+            if (data.repo_status && (data.repo_status.history_diverged || data.repo_status.force_update_required)) {
+                this._showRepoStatusWarning(data.repo_status);
+            }
+
+        } catch (error) {
+            console.error('Update check failed:', error);
+            statusEl.textContent = `Check failed: ${error.message}`;
+            statusEl.className = 'update-status error';
+        } finally {
+            if (checkBtn) {
+                checkBtn.disabled = false;
+                // Only reset button text if we're not in offline mode
+                if (!statusEl.classList.contains('offline')) {
+                    checkBtn.textContent = 'Check for Updates';
+                    checkBtn.classList.remove('btn-warning');
+                }
+            }
+        }
+    },
+
+    /** Populate the update options UI with available versions. */
+    _populateUpdateOptions(data) {
+        const stableSelect = document.getElementById('stable-versions');
+        const betaCheckbox = document.getElementById('beta-mode');
+        const betaInfo = document.getElementById('beta-info');
+
+        // Populate stable versions
+        if (stableSelect) {
+            stableSelect.innerHTML = '';
+            
+            if (data.stable.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No stable releases available';
+                option.disabled = true;
+                stableSelect.appendChild(option);
+            } else {
+                // Add empty option
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = 'Select a version...';
+                stableSelect.appendChild(emptyOption);
+
+                // Add stable versions
+                data.stable.forEach(version => {
+                    const option = document.createElement('option');
+                    option.value = version;
+                    option.textContent = version;
+                    
+                    // Mark current version
+                    if (data.current.tag === version) {
+                        option.textContent += ' (current)';
+                        option.disabled = true;
+                    }
+                    
+                    stableSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Update beta option
+        if (betaCheckbox && betaInfo) {
+            // Disable beta in offline mode or when not available
+            betaCheckbox.disabled = !data.beta.available || data.offline_mode;
+            
+            if (data.offline_mode) {
+                betaInfo.innerHTML = 'Beta updates unavailable offline';
+                betaInfo.classList.remove('hidden');
+            } else if (data.beta.available) {
+                betaInfo.innerHTML = `${data.beta.commits_ahead} commits ahead (${data.beta.latest_commit})`;
+                betaInfo.classList.remove('hidden');
+            } else {
+                betaInfo.innerHTML = 'No beta updates available';
+                betaInfo.classList.add('hidden');
+            }
+            
+            // Show warning if present
+            if (data.beta.warning) {
+                betaInfo.innerHTML = data.beta.warning;
+                betaInfo.classList.remove('hidden');
+            }
+        }
+
+        this._updateApplyButtonState();
+    },
+
+    /** Update the apply button state based on selection. */
+    _updateApplyButtonState() {
+        const applyBtn = document.getElementById('apply-update-btn');
+        const stableSelect = document.getElementById('stable-versions');
+        const betaCheckbox = document.getElementById('beta-mode');
+
+        if (!applyBtn) return;
+
+        const hasStableSelection = stableSelect && stableSelect.value;
+        const hasBetaSelection = betaCheckbox && betaCheckbox.checked && !betaCheckbox.disabled;
+
+        if (hasStableSelection || hasBetaSelection) {
+            applyBtn.classList.remove('hidden');
+            applyBtn.disabled = false;
+        } else {
+            applyBtn.classList.add('hidden');
+            applyBtn.disabled = true;
+        }
+    },
+
+    /** Get the currently selected version to update to. */
+    _getSelectedVersion() {
+        const stableSelect = document.getElementById('stable-versions');
+        const betaCheckbox = document.getElementById('beta-mode');
+
+        if (betaCheckbox && betaCheckbox.checked && !betaCheckbox.disabled) {
+            return 'main';
+        } else if (stableSelect && stableSelect.value) {
+            return stableSelect.value;
+        }
+
+        return null;
+    },
+
+    /** Apply the selected update. */
+    async applyUpdate() {
+        const version = this._getSelectedVersion();
+        if (!version) {
+            alert('Please select a version to update to.');
+            return;
+        }
+
+        // Check if we're trying to update to main branch while offline
+        if (version === 'main' && this._isOfflineMode()) {
+            alert('Cannot update to beta (main branch) while offline.\n\nPlease check your internet connection and try again.');
+            return;
+        }
+
+        // Check update safety first
+        try {
+            const safetyCheck = await this._checkUpdateSafety(version);
+            if (!safetyCheck.success) {
+                alert(`Safety check failed: ${safetyCheck.error}`);
+                return;
+            }
+
+            // Handle unsafe updates
+            if (!safetyCheck.safe) {
+                const forceConfirm = await this._handleUnsafeUpdate(version, safetyCheck);
+                if (!forceConfirm) {
+                    return; // User cancelled
+                }
+            }
+
+            // Proceed with the update
+            await this._performUpdate(version, safetyCheck.requires_force);
+            
+        } catch (error) {
+            console.error('Update failed:', error);
+            alert(`Update failed: ${error.message}`);
+        }
+    },
+
+    /** Check if an update would be safe. */
+    async _checkUpdateSafety(version) {
+        const response = await fetch('/api/system/updates/safety-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version })
+        });
+        
+        return await response.json();
+    },
+
+    /** Handle unsafe update scenarios with user confirmation. */
+    async _handleUnsafeUpdate(version, safetyCheck) {
+        const versionText = version === 'main' ? 'main branch' : version;
+        let warningMessage = `⚠️ WARNING: Updating to ${versionText} is not safe!\n\n`;
+        
+        if (safetyCheck.history_rewritten) {
+            warningMessage += `This update would rewrite git history. This means:\n`;
+            warningMessage += `• Local changes may be permanently lost\n`;
+            warningMessage += `• The update cannot be easily rolled back\n`;
+            warningMessage += `• This may indicate the remote repository was force-pushed\n\n`;
+        }
+        
+        warningMessage += `Issue: ${safetyCheck.warning}\n\n`;
+        
+        switch (safetyCheck.recommendation) {
+            case 'rollback':
+                warningMessage += `This appears to be a rollback to an older version.`;
+                break;
+            case 'force_required':
+                warningMessage += `A force update is required, which will discard local history.`;
+                break;
+            default:
+                warningMessage += `This update may cause issues.`;
+        }
+        
+        warningMessage += `\n\nDo you want to force this update anyway?\n\n`;
+        warningMessage += `⚠️ THIS IS POTENTIALLY DANGEROUS ⚠️`;
+        
+        return confirm(warningMessage);
+    },
+
+    /** Perform the actual update with proper confirmation. */
+    async _performUpdate(version, forceUpdate = false) {
+        // Get PIN if required
+        const pinInput = document.getElementById('update-pin');
+        const pin = pinInput && !pinInput.closest('.hidden') ? pinInput.value : null;
+
+        // Final confirmation
+        const versionText = version === 'main' ? 'latest beta (main branch)' : version;
+        const forceWarning = forceUpdate ? '\n\n⚠️ This will FORCE UPDATE and may discard local changes!' : '';
+        const offlineWarning = this._isOfflineMode() && version !== 'main' ? 
+            '\n\nNote: Working offline - using cached version information.' : '';
+        
+        if (!confirm(`Update MixPi to ${versionText}?${forceWarning}${offlineWarning}\n\nThe system will restart automatically. Any active recording will be stopped.`)) {
+            return;
+        }
+
+        // Show progress UI
+        this._showUpdateProgress();
+
+        try {
+            const response = await fetch('/api/system/updates/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ version, pin, force: forceUpdate })
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                // Handle special case where force is required
+                if (data.requires_force && !forceUpdate) {
+                    const forceConfirm = await this._handleUnsafeUpdate(version, data);
+                    if (forceConfirm) {
+                        // Retry with force
+                        return this._performUpdate(version, true);
+                    } else {
+                        this._resetUpdateUI();
+                        return;
+                    }
+                }
+                
+                throw new Error(data.error || 'Update failed');
+            }
+
+            // Update will restart the service, so show completion message
+            this._updateProgress('completed', `${data.message}\n\nSystem is restarting...`, 100);
+
+            // Clear PIN input on success
+            if (pinInput) pinInput.value = '';
+
+            // Page will likely reload due to service restart
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+
+        } catch (error) {
+            console.error('Update failed:', error);
+            this._updateProgress('error', `Update failed: ${error.message}`, 0);
+            this._resetUpdateUI();
+        }
+    },
+
+    /** Reset the update UI to initial state. */
+    _resetUpdateUI() {
+        const progressEl = document.getElementById('update-progress');
+        const applyBtn = document.getElementById('apply-update-btn');
+        const rollbackBtn = document.getElementById('rollback-btn');
+        const stableSelect = document.getElementById('stable-versions');
+        const betaCheckbox = document.getElementById('beta-mode');
+        const checkBtn = document.getElementById('check-updates-btn');
+
+        if (progressEl) progressEl.classList.add('hidden');
+        if (applyBtn) {
+            applyBtn.disabled = false;
+            applyBtn.textContent = 'Apply Update';
+        }
+        if (rollbackBtn) {
+            rollbackBtn.disabled = false;
+            rollbackBtn.textContent = 'Rollback to Previous';
+        }
+        if (stableSelect) stableSelect.disabled = false;
+        if (betaCheckbox) betaCheckbox.disabled = false;
+        if (checkBtn) checkBtn.disabled = false;
+    },
+
+    /** Show the update progress UI. */
+    _showUpdateProgress() {
+        const progressEl = document.getElementById('update-progress');
+        const applyBtn = document.getElementById('apply-update-btn');
+        const controlsEl = document.getElementById('update-controls');
+
+        if (progressEl) {
+            progressEl.classList.remove('hidden');
+        }
+
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.textContent = 'Updating...';
+        }
+
+        // Disable other controls
+        const stableSelect = document.getElementById('stable-versions');
+        const betaCheckbox = document.getElementById('beta-mode');
+        const checkBtn = document.getElementById('check-updates-btn');
+
+        if (stableSelect) stableSelect.disabled = true;
+        if (betaCheckbox) betaCheckbox.disabled = true;
+        if (checkBtn) checkBtn.disabled = true;
+
+        this._updateProgress('starting', 'Preparing update...', 10);
+    },
+
+    /** Update the progress display. */
+    _updateProgress(step, message, percentage) {
+        const progressText = document.getElementById('progress-text');
+        const progressFill = document.getElementById('progress-fill');
+
+        if (progressText) {
+            progressText.textContent = message;
+        }
+
+        if (progressFill) {
+            progressFill.style.width = `${percentage}%`;
+        }
+
+        // Update progress bar color based on step
+        if (progressFill) {
+            progressFill.className = 'progress-fill';
+            if (step === 'error') {
+                progressFill.classList.add('progress-error');
+            } else if (step === 'completed') {
+                progressFill.classList.add('progress-success');
+            } else if (step === 'rollback') {
+                progressFill.classList.add('progress-warning');
+            } else if (step === 'warning') {
+                progressFill.classList.add('progress-warning');
+            }
+        }
+    },
+
+    /** Check if we're currently in offline mode. */
+    _isOfflineMode() {
+        const statusEl = document.getElementById('update-status');
+        return statusEl && statusEl.classList.contains('offline');
+    },
+
+    /** Show repository status warnings. */
+    _showRepoStatusWarning(repoStatus) {
+        const controlsEl = document.getElementById('update-controls');
+        if (!controlsEl) return;
+
+        // Remove any existing warning
+        const existingWarning = controlsEl.querySelector('.repo-status-warning');
+        if (existingWarning) existingWarning.remove();
+
+        let warningText = '';
+        if (repoStatus.history_diverged) {
+            warningText = '⚠️ Repository history has diverged - some updates may require force';
+        } else if (repoStatus.force_update_required) {
+            warningText = '⚠️ Repository state may require force updates';
+        }
+
+        if (warningText) {
+            const warningDiv = document.createElement('div');
+            warningDiv.className = 'repo-status-warning';
+            warningDiv.textContent = warningText;
+            controlsEl.insertBefore(warningDiv, controlsEl.firstChild);
+        }
+    },
+
+    /** Check if rollback is available. */
+    async _checkRollbackAvailability() {
+        try {
+            const response = await fetch('/api/system/updates/rollback-info');
+            const data = await response.json();
+            
+            const rollbackBtn = document.getElementById('rollback-btn');
+            if (rollbackBtn && data.success) {
+                if (data.available) {
+                    rollbackBtn.classList.remove('hidden');
+                    rollbackBtn.title = `Rollback to ${data.previous_describe || data.previous_commit}`;
+                } else {
+                    rollbackBtn.classList.add('hidden');
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to check rollback availability:', error);
+        }
+    },
+
+    /** Perform a rollback to the previous version. */
+    async performRollback() {
+        // Get PIN if required
+        const pinInput = document.getElementById('update-pin');
+        const pin = pinInput && !pinInput.closest('.hidden') ? pinInput.value : null;
+
+        // Confirm the rollback
+        if (!confirm('Rollback to the previous version?\n\nThis will undo the last update and restart the system. Any active recording will be stopped.')) {
+            return;
+        }
+
+        // Show progress
+        this._showUpdateProgress();
+        this._updateProgress('rollback', 'Rolling back to previous version...', 30);
+
+        try {
+            const response = await fetch('/api/system/updates/rollback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin })
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Rollback failed');
+            }
+
+            // Show completion
+            this._updateProgress('completed', 'Rollback completed - system restarting...', 100);
+
+            // Clear PIN input on success
+            if (pinInput) pinInput.value = '';
+
+            // Page will likely reload due to service restart
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+
+        } catch (error) {
+            console.error('Rollback failed:', error);
+            this._updateProgress('error', `Rollback failed: ${error.message}`, 0);
+            this._resetUpdateUI();
+        }
+    },
+
+    /** Handle WebSocket progress updates. */
+    _handleUpdateProgress(data) {
+        const stepMessages = {
+            'validating': 'Validating repository...',
+            'analyzing': 'Analyzing update safety...',
+            'cleaning': 'Preparing clean state...',
+            'updating': 'Installing update...',
+            'restarting': 'Restarting service...',
+            'rollback': 'Rolling back changes...',
+            'warning': 'Update completed with warnings'
+        };
+
+        const stepPercentages = {
+            'validating': 15,
+            'analyzing': 25,
+            'cleaning': 35,
+            'updating': 70,
+            'restarting': 90,
+            'rollback': 60,
+            'completed': 100,
+            'warning': 95
+        };
+
+        const message = data.message || stepMessages[data.step] || 'Processing...';
+        const percentage = stepPercentages[data.step] || 50;
+
+        this._updateProgress(data.step, message, percentage);
+    },
 };
 
 /** Wire up the System tab click to load drive cards lazily. */
@@ -338,3 +929,6 @@ function initSystemTab() {
         storageTab.load();
     });
 }
+
+// Make storageTab available globally for WebSocket event handling
+window.storageTab = storageTab;

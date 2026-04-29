@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260445">
+    <link rel="stylesheet" href="css/style.css?v=20260446">
     <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
@@ -486,6 +486,50 @@
                                     title="Reboot entire Raspberry Pi (not just MixPi). Use when hardware or USB is stuck.">
                                 Reboot Raspberry Pi
                             </button>
+                            
+                            <div class="system-update-section">
+                                <h3>Software Updates</h3>
+                                <div id="update-status" class="update-status">Checking for updates...</div>
+                                <div id="update-controls" class="update-controls hidden">
+                                    <div class="update-options">
+                                        <div class="stable-updates">
+                                            <h4>Stable Releases</h4>
+                                            <select id="stable-versions" class="form-select">
+                                                <option value="">No stable releases available</option>
+                                            </select>
+                                        </div>
+                                        <div class="beta-update">
+                                            <label class="form-check-label">
+                                                <input type="checkbox" id="beta-mode" class="form-check-input"> 
+                                                Beta (latest main branch)
+                                            </label>
+                                            <div id="beta-info" class="beta-info hidden"></div>
+                                        </div>
+                                    </div>
+                                    <div id="pin-entry" class="pin-entry hidden">
+                                        <label for="update-pin">Update PIN:</label>
+                                        <input type="text" id="update-pin" maxlength="4" pattern="[0-9]{4}" 
+                                               placeholder="Enter 4-digit PIN" class="form-input pin-input">
+                                    </div>
+                                    <div class="update-actions">
+                                        <button id="check-updates-btn" type="button" class="btn btn-outline-primary">
+                                            Check for Updates
+                                        </button>
+                                        <button id="apply-update-btn" type="button" class="btn btn-primary hidden">
+                                            Apply Update
+                                        </button>
+                                        <button id="rollback-btn" type="button" class="btn btn-outline-danger hidden">
+                                            Rollback to Previous
+                                        </button>
+                                    </div>
+                                    <div id="update-progress" class="update-progress hidden">
+                                        <div class="progress-bar">
+                                            <div id="progress-fill" class="progress-fill"></div>
+                                        </div>
+                                        <div id="progress-text" class="progress-text">Preparing update...</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

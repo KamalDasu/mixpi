@@ -29,6 +29,9 @@ web:
   # Extra dB on stereo mix share exports (bounce/export, stereo-mix ZIP) for phone listening.
   # Does not change bounce/download (DAW) or the stereo_mix.wav on disk. Set 0 to disable.
   stereo_mix_export_gain_db: 4.0
+  # Optional 4-digit PIN (0-9 only) for future in-app / browser updates. Leave empty or omit
+  # so update actions do not require a PIN (use only on a trusted LAN if unset).
+  update_pin: ""
 
 osc:
   xair_ip: ""               # leave empty for auto-discovery via UDP broadcast (recommended)

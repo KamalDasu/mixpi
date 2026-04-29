@@ -932,6 +932,14 @@ function initWebSocket() {
             meters.updateStrip(data.channel - 1, data.strip);
         }
     });
+
+    // Update progress from system updates
+    socket.on('update_progress', (data) => {
+        // Forward to storageTab if it exists and has the handler
+        if (window.storageTab && typeof window.storageTab._handleUpdateProgress === 'function') {
+            window.storageTab._handleUpdateProgress(data);
+        }
+    });
 }
 
 function setupEventListeners() {

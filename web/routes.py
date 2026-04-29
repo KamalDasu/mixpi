@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import logging
 import re
+from typing import Optional
 
 from src.mixer_profiles import find_profile_by_usb_name
 from src.recording_paths import recording_take_display_name
@@ -60,6 +61,37 @@ def _ffmpeg_stereo_mix_export_filter_args() -> list[str]:
     # Limiter catches inter-sample peaks after the boost (AAC/MP3 / phone playback).
     filt = f'volume={db}dB,alimiter=limit=1:attack=1:release=100'
     return ['-af', filt]
+
+
+def _get_update_pin() -> str:
+    """
+    Optional 4-digit numeric PIN from web.update_pin (config).
+    Missing, empty, or invalid → '' (no PIN gate for guarded actions).
+    """
+    raw = _web_settings.get('update_pin')
+    if raw is None:
+        return ''
+    s = str(raw).strip()
+    if not s:
+        return ''
+    if len(s) == 4 and s.isdigit():
+        return s
+    logger.warning(
+        'web.update_pin must be exactly four digits or empty — got %r; treating as unset',
+        s[:20],
+    )
+    return ''
+
+
+def verify_update_pin(submitted: Optional[str]) -> bool:
+    """True if no PIN is configured, or if submitted matches the configured PIN."""
+    expected = _get_update_pin()
+    if not expected:
+        return True
+    if submitted is None:
+        return False
+    return str(submitted).strip() == expected
+
 
 # ---------------------------------------------------------------------------
 # Background USB playback (Play on Mixer)
@@ -1384,6 +1416,372 @@ def monitoring_restart():
                         'sample_rate': audio_engine.sample_rate})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api.route('/system/update-pin-status', methods=['GET'])
+def get_update_pin_status():
+    """
+    Whether a 4-digit update PIN is configured (for future browser-based updates).
+    Does not reveal the PIN or any digits.
+    """
+    try:
+        return jsonify({
+            'success': True,
+            'pin_required': bool(_get_update_pin()),
+        })
+    except Exception as e:
+        logger.error(f'update-pin-status: {e}')
+        return jsonify({'success': False, 'pin_required': False}), 500
+
+
+@api.route('/system/updates/check', methods=['GET'])
+def check_for_updates():
+    """
+    Check for available updates by fetching from git remote.
+    Returns available stable releases, beta status, and current version info.
+    """
+    from web.git_updater import (
+        fetch_updates, list_available_versions, get_current_version, 
+        get_main_branch_status, validate_repo_state
+    )
+    
+    try:
+        # First validate repository state
+        repo_status = validate_repo_state()
+        if not repo_status['valid']:
+            return jsonify({
+                'success': False,
+                'error': repo_status.get('error', 'Invalid repository state')
+            }), 500
+        
+        # Try to fetch latest updates
+        fetch_success, fetch_message = fetch_updates()
+        offline_mode = not fetch_success
+        
+        # Get available versions (may be cached/offline)
+        versions = list_available_versions(offline_mode=offline_mode)
+        current = get_current_version()
+        main_status = get_main_branch_status(offline_mode=offline_mode)
+        
+        return jsonify({
+            'success': True,
+            'offline_mode': offline_mode,
+            'fetch_message': fetch_message,
+            'current': {
+                'tag': current['tag'],
+                'commit': current['commit'],
+                'branch': current['branch'],
+                'describe': current['describe']
+            },
+            'stable': versions['stable'],
+            'prerelease': versions['prerelease'],
+            'beta': {
+                'available': main_status['available'],
+                'commits_ahead': main_status['commits_ahead'],
+                'latest_commit': main_status['latest_commit'],
+                'latest_date': main_status['latest_date'],
+                'warning': main_status.get('warning')
+            },
+            'repo_status': {
+                'has_changes': repo_status['has_changes'],
+                'behind_remote': repo_status['behind_remote'],
+                'history_diverged': repo_status['history_diverged'],
+                'force_update_required': repo_status['force_update_required']
+            },
+            'warnings': [w for w in [versions.get('warning'), main_status.get('warning')] if w]
+        })
+        
+    except Exception as e:
+        logger.error(f'check-for-updates error: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api.route('/system/updates/safety-check', methods=['POST'])
+def check_update_safety():
+    """
+    Check if an update would be safe or require force.
+    Expects JSON: {"version": "v1.0.0|main"}
+    """
+    try:
+        data = request.get_json()
+        if not data or not data.get('version'):
+            return jsonify({
+                'success': False,
+                'error': 'version field required'
+            }), 400
+        
+        from web.git_updater import check_history_safety
+        safety = check_history_safety(data['version'])
+        
+        return jsonify({
+            'success': True,
+            'safe': safety['safe'],
+            'requires_force': safety['requires_force'],
+            'history_rewritten': safety['history_rewritten'],
+            'warning': safety['warning'],
+            'recommendation': safety['recommendation']
+        })
+        
+    except Exception as e:
+        logger.error(f'safety-check error: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api.route('/system/updates/rollback', methods=['POST'])
+def rollback_update():
+    """
+    Manually rollback to the previous version with PIN verification.
+    Expects JSON: {"pin": "1234"}
+    """
+    from web.git_updater import perform_manual_rollback, get_rollback_info
+    
+    try:
+        data = request.get_json() or {}
+        submitted_pin = data.get('pin')
+        
+        # Verify PIN if required
+        if not verify_update_pin(submitted_pin):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or missing update PIN'
+            }), 403
+        
+        # Check if rollback is available
+        rollback_info = get_rollback_info()
+        if not rollback_info['available']:
+            return jsonify({
+                'success': False,
+                'error': 'No rollback information available'
+            }), 400
+        
+        # Perform rollback
+        success, message = perform_manual_rollback()
+        
+        if success:
+            # Restart the service in a background thread
+            def _do_restart():
+                import time
+                time.sleep(1.0)
+                try:
+                    socketio.emit('update_progress', {
+                        'step': 'restarting', 
+                        'message': 'Service restarting after rollback...',
+                        'timestamp': time.time()
+                    })
+                    time.sleep(0.5)
+                    subprocess.run(['sudo', 'systemctl', 'restart', 'mixpi-recorder'], 
+                                 check=False, timeout=30)
+                except Exception as e:
+                    logger.error(f'Service restart after rollback failed: {e}')
+            
+            threading.Thread(target=_do_restart, daemon=True).start()
+            
+            return jsonify({
+                'success': True,
+                'message': message,
+                'restarting': True
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 500
+        
+    except Exception as e:
+        logger.error(f'rollback error: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api.route('/system/updates/rollback-info', methods=['GET'])
+def get_rollback_status():
+    """
+    Get information about available rollback options.
+    """
+    try:
+        from web.git_updater import get_rollback_info
+        rollback_info = get_rollback_info()
+        
+        return jsonify({
+            'success': True,
+            'available': rollback_info['available'],
+            'previous_commit': rollback_info['previous_commit'],
+            'previous_describe': rollback_info['previous_describe']
+        })
+        
+    except Exception as e:
+        logger.error(f'rollback-info error: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api.route('/system/updates/apply', methods=['POST'])
+def apply_update():
+    """
+    Apply a specific update with PIN verification.
+    Expects JSON: {"version": "v1.0.0|main", "pin": "1234"}
+    """
+    from web.git_updater import (
+        validate_repo_state, reset_to_clean_state, checkout_version
+    )
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON payload required'
+            }), 400
+        
+        target_version = data.get('version')
+        submitted_pin = data.get('pin')
+        force_update = data.get('force', False)
+        
+        if not target_version:
+            return jsonify({
+                'success': False,
+                'error': 'version field required'
+            }), 400
+        
+        # Verify PIN if required
+        if not verify_update_pin(submitted_pin):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or missing update PIN'
+            }), 403
+        
+        # Emit progress via WebSocket
+        def emit_progress(step: str, message: str):
+            try:
+                socketio.emit('update_progress', {
+                    'step': step,
+                    'message': message,
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.warning(f'Failed to emit progress: {e}')
+        
+        # Validate repository state
+        emit_progress('validating', 'Validating repository state...')
+        repo_status = validate_repo_state()
+        if not repo_status['valid']:
+            return jsonify({
+                'success': False,
+                'error': repo_status.get('error', 'Invalid repository state')
+            }), 500
+        
+        # Reset to clean state if there are uncommitted changes
+        if repo_status['has_changes']:
+            emit_progress('cleaning', 'Resetting uncommitted changes...')
+            if not reset_to_clean_state():
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to reset repository to clean state'
+                }), 500
+        
+        # Check history safety first
+        emit_progress('analyzing', 'Analyzing update safety...')
+        from web.git_updater import check_history_safety
+        safety = check_history_safety(target_version)
+        
+        if not safety['safe'] and not force_update:
+            return jsonify({
+                'success': False,
+                'error': safety['warning'],
+                'requires_force': safety['requires_force'],
+                'history_rewritten': safety['history_rewritten'],
+                'recommendation': safety['recommendation']
+            }), 409  # Conflict status
+        
+        # Perform the checkout
+        emit_progress('updating', f'Checking out {target_version}...')
+        success, message = checkout_version(target_version, force=force_update)
+        
+        if not success:
+            # If checkout failed, the rollback should have been automatic
+            if "rolled back" in message:
+                emit_progress('rollback', 'Update failed - rolled back to previous version')
+            else:
+                emit_progress('error', f'Update failed: {message}')
+            
+            return jsonify({
+                'success': False,
+                'error': message,
+                'rolled_back': "rolled back" in message
+            }), 500
+        
+        # Update succeeded, restart the service
+        emit_progress('restarting', 'Restarting MixPi service...')
+        
+        def _do_restart():
+            import time
+            time.sleep(1.0)  # Let the response be sent first
+            try:
+                socketio.emit('update_progress', {
+                    'step': 'restarting', 
+                    'message': 'Service restarting...',
+                    'timestamp': time.time()
+                })
+                time.sleep(0.5)
+                
+                # Attempt service restart
+                result = subprocess.run(['sudo', 'systemctl', 'restart', 'mixpi-recorder'], 
+                                      capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    socketio.emit('update_progress', {
+                        'step': 'completed', 
+                        'message': 'Update completed successfully',
+                        'timestamp': time.time()
+                    })
+                else:
+                    # Service restart failed - this is bad, but the update succeeded
+                    logger.error(f'Service restart failed: {result.stderr}')
+                    socketio.emit('update_progress', {
+                        'step': 'warning', 
+                        'message': 'Update completed but service restart failed - manual restart may be needed',
+                        'timestamp': time.time()
+                    })
+                    
+            except subprocess.TimeoutExpired:
+                logger.error('Service restart timed out')
+                socketio.emit('update_progress', {
+                    'step': 'warning', 
+                    'message': 'Update completed but service restart timed out',
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f'Service restart failed: {e}')
+                socketio.emit('update_progress', {
+                    'step': 'warning', 
+                    'message': f'Update completed but service restart failed: {e}',
+                    'timestamp': time.time()
+                })
+        
+        threading.Thread(target=_do_restart, daemon=True).start()
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'restarting': True
+        })
+        
+    except Exception as e:
+        logger.error(f'apply-update error: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @api.route('/system/restart', methods=['POST'])
