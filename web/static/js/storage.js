@@ -335,6 +335,25 @@ const storageTab = {
         }
     },
 
+    /**
+     * Label shown after "Up to date (" — package semver from API, else git tag / describe.
+     */
+    _upToDateLabel(data) {
+        if (data.package_version) {
+            return data.package_version;
+        }
+        const cur = data.current || {};
+        if (cur.tag && /^v\d+\.\d+\.\d+$/.test(cur.tag)) {
+            return cur.tag;
+        }
+        const d = cur.describe || '';
+        const m = d.match(/^(v\d+\.\d+\.\d+)/);
+        if (m) {
+            return m[1];
+        }
+        return cur.commit || '';
+    },
+
     /** Set status line: fixed "MixPi Updates:" prefix (HTML) + dynamic state text. */
     _setUpdateStatus(stateClass, stateText) {
         const wrap = document.getElementById('update-status');
@@ -443,7 +462,7 @@ const storageTab = {
             } else if (hasUpdates) {
                 this._setUpdateStatus('available', 'Available');
             } else {
-                const detail = data.current.describe || data.current.commit || '';
+                const detail = this._upToDateLabel(data);
                 this._setUpdateStatus(
                     'current',
                     detail ? `Up to date (${detail})` : 'Up to date'

@@ -18,7 +18,7 @@ A professional multi-track USB audio recorder that runs on a Raspberry Pi 4/5. I
 
 ## Key Features
 
-- **In-App Updates**: Update MixPi directly through the web interface with tagged releases or beta updates, including automatic rollback on failure
+- **In-App Updates**: Update MixPi from the **System** tab (stable tags or beta/`main`), optional PIN in `config.yaml`, service restart via **`mixpi-recorder`**. See [INSTALL.md — In-app updates](INSTALL.md#in-app-updates-system-tab).
 - **Multi-Track Recording**: Capture all mixer channels simultaneously in professional quality
 - **Session Management**: Organize recordings with venues, artists, notes, and automatic file naming
 - **Real-Time Monitoring**: Live channel meters with mixer integration via OSC

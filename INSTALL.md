@@ -314,6 +314,61 @@ Avahi advertises the service on port 5000. The Pi is reachable as `<hostname>.lo
 
 ---
 
+### In-app updates (System tab)
+
+MixPi can upgrade or downgrade **from git** using the **System** tab (**MixPi Updates**). This uses the same **`mixpi-recorder`** systemd service as a normal restart.
+
+#### Requirements
+
+| Requirement | Why |
+|-------------|-----|
+| **`/opt/mixpi` is a git clone** | Updates run `git fetch` / `git checkout` in that directory (installer clones from GitHub). |
+| **Network to GitHub** | **Check for Updates** needs `git fetch origin` (stable tags and **Beta** / `origin/main`). Offline: only **already-fetched** tags can be used. |
+| **Annotated release tags** (`v1.0.0`, `v1.0.1`, …) | **Stable Releases** lists semver-style tags. Bump **`web/__init__.__version__`** when you cut a release so the UI **Up to date (v…)** label matches the shipped app version. |
+
+#### What to do in the UI
+
+1. Open **System**.
+2. Under **MixPi Updates**, click **Check for Updates** (runs `git fetch` on the server).
+3. Choose either:
+   - **Stable Releases** — pick a tag, then **Apply Update** (checkout that tag), or  
+   - **Beta (latest main branch)** — only enabled when `origin/main` is **ahead** of your current checkout and you are online.
+4. If `web.update_pin` is set in `config.yaml`, enter the **4-digit PIN** when applying.
+
+After a successful apply, MixPi restarts the **`mixpi-recorder`** service automatically.
+
+#### Configuration (`config.yaml`)
+
+| Setting | Purpose |
+|---------|---------|
+| `web.update_pin` | Optional **4-digit** PIN. Empty = no PIN. Applies to in-app update actions only (not your Linux login). |
+
+See **`config.yaml.example`** for the exact key and comments.
+
+#### Status line
+
+- **MixPi Updates: Available** — a newer **stable tag** or **beta (`main`)** commit exists vs your current tree.
+- **MixPi Updates: Up to date (vX.Y.Z)** — uses the package version from **`web/__init__.py`** when no upgrade is pending (aligned with the header build badge pattern).
+
+Downgrading does **not** use a separate “rollback” button: pick an **older tag** in **Stable Releases** and **Apply Update**.
+
+#### Git tags on the Pi vs GitHub
+
+If you **delete or move tags on GitHub**, the Pi may keep stale tag refs until refreshed:
+
+```bash
+sudo git -C /opt/mixpi fetch origin --prune --prune-tags
+```
+
+Run that on the Pi after tag housekeeping on GitHub so **Stable Releases** matches the remote.
+
+#### Alternatives to the web updater
+
+- **`scripts/sync.sh`** from your PC — rsync or **`--git-only`** (Pi pulls `main`).
+- **Re-run installer** with `MIXPI_GIT_RESET=1` — forces `/opt/mixpi` to match `origin/main` (see [Part 2](#part-2--application-installation)).
+
+---
+
 ### All-in-One Quick Reference
 
 #### Fresh Raspberry Pi

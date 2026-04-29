@@ -1448,6 +1448,7 @@ def check_for_updates():
         stable_tag_upgrade_available,
         validate_repo_state,
     )
+    from web import __version__ as _package_semver
     
     try:
         # First validate repository state
@@ -1472,6 +1473,7 @@ def check_for_updates():
             'success': True,
             'offline_mode': offline_mode,
             'fetch_message': fetch_message,
+            'package_version': f'v{_package_semver}',
             'stable_update_available': stable_upgrade,
             'current': {
                 'tag': current['tag'],
