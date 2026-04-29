@@ -3837,6 +3837,8 @@ body:not(.mobile-view) .ch-name {
 /* Update Controls */
 .update-controls {
     display: block;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .update-controls.hidden {
