@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260446">
+    <link rel="stylesheet" href="css/style.css?v=20260452">
     <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
@@ -488,8 +488,10 @@
                             </button>
                             
                             <div class="system-update-section">
-                                <h3>Software Updates</h3>
-                                <div id="update-status" class="update-status">Checking for updates...</div>
+                                <div id="update-status" class="update-status checking" role="status">
+                                    <span class="update-status__prefix">MixPi Updates:</span>
+                                    <span id="update-status-state" class="update-status__state">Checking…</span>
+                                </div>
                                 <div id="update-controls" class="update-controls hidden">
                                     <div class="update-options">
                                         <div class="stable-updates">
@@ -517,9 +519,6 @@
                                         </button>
                                         <button id="apply-update-btn" type="button" class="btn btn-primary hidden">
                                             Apply Update
-                                        </button>
-                                        <button id="rollback-btn" type="button" class="btn btn-outline-danger hidden">
-                                            Rollback to Previous
                                         </button>
                                     </div>
                                     <div id="update-progress" class="update-progress hidden">

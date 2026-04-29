@@ -332,6 +332,18 @@ const storageTab = {
         }
     },
 
+    /** Set status line: fixed "MixPi Updates:" prefix (HTML) + dynamic state text. */
+    _setUpdateStatus(stateClass, stateText) {
+        const wrap = document.getElementById('update-status');
+        const state = document.getElementById('update-status-state');
+        if (state) {
+            state.textContent = stateText;
+        }
+        if (wrap) {
+            wrap.className = 'update-status ' + stateClass;
+        }
+    },
+
     /** Initialize the update UI and wire up event handlers. */
     async _initUpdateUI() {
         const updateSection = document.querySelector('.system-update-section');
@@ -340,7 +352,6 @@ const storageTab = {
         // Wire up event handlers
         const checkBtn = document.getElementById('check-updates-btn');
         const applyBtn = document.getElementById('apply-update-btn');
-        const rollbackBtn = document.getElementById('rollback-btn');
         const betaCheckbox = document.getElementById('beta-mode');
         const stableSelect = document.getElementById('stable-versions');
 
@@ -352,11 +363,6 @@ const storageTab = {
         if (applyBtn && !applyBtn._wired) {
             applyBtn.addEventListener('click', () => this.applyUpdate());
             applyBtn._wired = true;
-        }
-
-        if (rollbackBtn && !rollbackBtn._wired) {
-            rollbackBtn.addEventListener('click', () => this.performRollback());
-            rollbackBtn._wired = true;
         }
 
         if (betaCheckbox && !betaCheckbox._wired) {
@@ -388,26 +394,21 @@ const storageTab = {
 
         // Auto-check for updates on load
         this.checkForUpdates();
-        
-        // Check for rollback availability
-        this._checkRollbackAvailability();
     },
 
     /** Check for available updates and populate the UI. */
     async checkForUpdates() {
-        const statusEl = document.getElementById('update-status');
+        const statusWrap = document.getElementById('update-status');
         const controlsEl = document.getElementById('update-controls');
         const checkBtn = document.getElementById('check-updates-btn');
 
-        if (!statusEl || !controlsEl) return;
+        if (!statusWrap || !controlsEl) return;
 
-        // Update UI state
-        statusEl.textContent = 'Checking for updates...';
-        statusEl.className = 'update-status checking';
+        this._setUpdateStatus('checking', 'Checking…');
         controlsEl.classList.add('hidden');
         if (checkBtn) {
             checkBtn.disabled = true;
-            checkBtn.textContent = 'Checking...';
+            checkBtn.textContent = 'Checking…';
         }
 
         try {
@@ -418,55 +419,51 @@ const storageTab = {
                 throw new Error(data.error || 'Update check failed');
             }
 
-            // Populate update options
             this._populateUpdateOptions(data);
 
-            // Update status with offline awareness
-            const hasUpdates = data.stable.length > 0 || data.beta.available;
-            let statusText;
-            let statusClass;
-            
+            // "Available" only when a newer stable tag or beta main exists — not merely when tags exist
+            const stablePending = typeof data.stable_update_available === 'boolean'
+                ? data.stable_update_available
+                : (data.stable && data.stable.length > 0);
+            const hasUpdates = stablePending || (data.beta && data.beta.available);
+
             if (data.offline_mode) {
-                statusText = `Offline mode - ${data.fetch_message}`;
-                statusClass = 'update-status offline';
-                
-                // Show additional info about cached versions if available
+                let statusText = `Offline — ${data.fetch_message}`;
                 if (data.stable.length > 0) {
-                    statusText += ` (${data.stable.length} cached version${data.stable.length !== 1 ? 's' : ''} available)`;
+                    statusText += ` (${data.stable.length} cached)`;
                 }
-                
-                // Make Check button more prominent when offline
+                this._setUpdateStatus('offline', statusText);
                 if (checkBtn) {
                     checkBtn.textContent = 'Retry Check (Online)';
                     checkBtn.classList.add('btn-warning');
                 }
             } else if (hasUpdates) {
-                statusText = 'Updates available';
-                statusClass = 'update-status available';
+                this._setUpdateStatus('available', 'Available');
             } else {
-                statusText = `Up to date (${data.current.describe || data.current.commit})`;
-                statusClass = 'update-status current';
+                const detail = data.current.describe || data.current.commit || '';
+                this._setUpdateStatus(
+                    'current',
+                    detail ? `Up to date (${detail})` : 'Up to date'
+                );
             }
-            
-            statusEl.textContent = statusText;
-            statusEl.className = statusClass;
 
             controlsEl.classList.remove('hidden');
-            
-            // Show repository status warnings if any
+
             if (data.repo_status && (data.repo_status.history_diverged || data.repo_status.force_update_required)) {
                 this._showRepoStatusWarning(data.repo_status);
             }
 
         } catch (error) {
             console.error('Update check failed:', error);
-            statusEl.textContent = `Check failed: ${error.message}`;
-            statusEl.className = 'update-status error';
+            const msg = error.message || String(error);
+            this._setUpdateStatus(
+                'error',
+                msg.length > 100 ? 'Check failed — see console' : `Check failed — ${msg}`
+            );
         } finally {
             if (checkBtn) {
                 checkBtn.disabled = false;
-                // Only reset button text if we're not in offline mode
-                if (!statusEl.classList.contains('offline')) {
+                if (!statusWrap.classList.contains('offline')) {
                     checkBtn.textContent = 'Check for Updates';
                     checkBtn.classList.remove('btn-warning');
                 }
@@ -721,7 +718,6 @@ const storageTab = {
     _resetUpdateUI() {
         const progressEl = document.getElementById('update-progress');
         const applyBtn = document.getElementById('apply-update-btn');
-        const rollbackBtn = document.getElementById('rollback-btn');
         const stableSelect = document.getElementById('stable-versions');
         const betaCheckbox = document.getElementById('beta-mode');
         const checkBtn = document.getElementById('check-updates-btn');
@@ -730,10 +726,6 @@ const storageTab = {
         if (applyBtn) {
             applyBtn.disabled = false;
             applyBtn.textContent = 'Apply Update';
-        }
-        if (rollbackBtn) {
-            rollbackBtn.disabled = false;
-            rollbackBtn.textContent = 'Rollback to Previous';
         }
         if (stableSelect) stableSelect.disabled = false;
         if (betaCheckbox) betaCheckbox.disabled = false;
@@ -822,72 +814,6 @@ const storageTab = {
             warningDiv.className = 'repo-status-warning';
             warningDiv.textContent = warningText;
             controlsEl.insertBefore(warningDiv, controlsEl.firstChild);
-        }
-    },
-
-    /** Check if rollback is available. */
-    async _checkRollbackAvailability() {
-        try {
-            const response = await fetch('/api/system/updates/rollback-info');
-            const data = await response.json();
-            
-            const rollbackBtn = document.getElementById('rollback-btn');
-            if (rollbackBtn && data.success) {
-                if (data.available) {
-                    rollbackBtn.classList.remove('hidden');
-                    rollbackBtn.title = `Rollback to ${data.previous_describe || data.previous_commit}`;
-                } else {
-                    rollbackBtn.classList.add('hidden');
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to check rollback availability:', error);
-        }
-    },
-
-    /** Perform a rollback to the previous version. */
-    async performRollback() {
-        // Get PIN if required
-        const pinInput = document.getElementById('update-pin');
-        const pin = pinInput && !pinInput.closest('.hidden') ? pinInput.value : null;
-
-        // Confirm the rollback
-        if (!confirm('Rollback to the previous version?\n\nThis will undo the last update and restart the system. Any active recording will be stopped.')) {
-            return;
-        }
-
-        // Show progress
-        this._showUpdateProgress();
-        this._updateProgress('rollback', 'Rolling back to previous version...', 30);
-
-        try {
-            const response = await fetch('/api/system/updates/rollback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pin })
-            });
-
-            const data = await response.json();
-
-            if (!data.success) {
-                throw new Error(data.error || 'Rollback failed');
-            }
-
-            // Show completion
-            this._updateProgress('completed', 'Rollback completed - system restarting...', 100);
-
-            // Clear PIN input on success
-            if (pinInput) pinInput.value = '';
-
-            // Page will likely reload due to service restart
-            setTimeout(() => {
-                window.location.reload();
-            }, 5000);
-
-        } catch (error) {
-            console.error('Rollback failed:', error);
-            this._updateProgress('error', `Rollback failed: ${error.message}`, 0);
-            this._resetUpdateUI();
         }
     },
 

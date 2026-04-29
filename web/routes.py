@@ -1441,8 +1441,12 @@ def check_for_updates():
     Returns available stable releases, beta status, and current version info.
     """
     from web.git_updater import (
-        fetch_updates, list_available_versions, get_current_version, 
-        get_main_branch_status, validate_repo_state
+        fetch_updates,
+        list_available_versions,
+        get_current_version,
+        get_main_branch_status,
+        stable_tag_upgrade_available,
+        validate_repo_state,
     )
     
     try:
@@ -1462,11 +1466,13 @@ def check_for_updates():
         versions = list_available_versions(offline_mode=offline_mode)
         current = get_current_version()
         main_status = get_main_branch_status(offline_mode=offline_mode)
-        
+        stable_upgrade = stable_tag_upgrade_available(versions['stable'])
+
         return jsonify({
             'success': True,
             'offline_mode': offline_mode,
             'fetch_message': fetch_message,
+            'stable_update_available': stable_upgrade,
             'current': {
                 'tag': current['tag'],
                 'commit': current['commit'],

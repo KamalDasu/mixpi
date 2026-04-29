@@ -214,6 +214,30 @@ def list_available_versions(offline_mode: bool = False) -> Dict[str, any]:
     }
 
 
+def stable_tag_upgrade_available(stable_tags: List[str]) -> bool:
+    """
+    True if any stable tag points to a commit strictly after HEAD (upgrade exists).
+
+    Tags remain listed for downgrade; this only drives the "updates available" badge.
+    """
+    if not stable_tags:
+        return False
+    try:
+        head = _run_git_command(['rev-parse', 'HEAD']).stdout.strip()
+    except GitUpdateError:
+        return False
+    for tag in stable_tags:
+        try:
+            result = _run_git_command(
+                ['rev-list', '--count', f'{head}..refs/tags/{tag}']
+            )
+            if int(result.stdout.strip()) > 0:
+                return True
+        except (GitUpdateError, ValueError):
+            continue
+    return False
+
+
 def get_current_version() -> Dict[str, Optional[str]]:
     """
     Get current version information.
