@@ -475,18 +475,6 @@
                                 </p>
                                 <button type="button" id="btn-exit-kiosk" class="btn btn-outline-accent">Exit fullscreen browser (show desktop)</button>
                             </div>
-                            <p class="system-service-hint system-service-hint--tight">
-                                <strong>Restart MixPi service</strong> reloads the recorder if audio is stuck. Stops any recording and refreshes this page.
-                            </p>
-                            <button type="button" id="btn-restart-service" class="btn btn-outline-danger btn-restart-mixpi"
-                                    title="Full process restart — reloads USB/PortAudio. Stops any recording.">
-                                Restart MixPi service
-                            </button>
-                            <button type="button" id="btn-system-reboot" class="btn btn-outline-danger"
-                                    title="Reboot entire Raspberry Pi (not just MixPi). Use when hardware or USB is stuck.">
-                                Reboot Raspberry Pi
-                            </button>
-                            
                             <div class="system-update-section">
                                 <div id="update-status" class="update-status checking" role="status">
                                     <span class="update-status__prefix">MixPi Updates:</span>
@@ -529,6 +517,17 @@
                                     </div>
                                 </div>
                             </div>
+                            <p class="system-service-hint system-service-hint--tight">
+                                <strong>Restart MixPi service</strong> reloads the recorder if audio is stuck. Stops any recording and refreshes this page.
+                            </p>
+                            <button type="button" id="btn-restart-service" class="btn btn-outline-danger btn-restart-mixpi"
+                                    title="Full process restart — reloads USB/PortAudio. Stops any recording.">
+                                Restart MixPi service
+                            </button>
+                            <button type="button" id="btn-system-reboot" class="btn btn-outline-danger"
+                                    title="Reboot entire Raspberry Pi (not just MixPi). Use when hardware or USB is stuck.">
+                                Reboot Raspberry Pi
+                            </button>
                         </div>
                     </div>
                 </div>
