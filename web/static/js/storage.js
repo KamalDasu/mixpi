@@ -41,6 +41,9 @@ const storageTab = {
 
         // Initialize update functionality
         this._initUpdateUI();
+        
+        // Re-check updates when tab becomes visible (in case system was updated externally)
+        this._setupVisibilityCheck();
     },
 
     async rebootSystem() {
@@ -456,6 +459,12 @@ const storageTab = {
             // Show repository status warnings if any
             if (data.repo_status && (data.repo_status.history_diverged || data.repo_status.force_update_required)) {
                 this._showRepoStatusWarning(data.repo_status);
+            }
+            
+            // Update button text state
+            if (checkBtn && !data.offline_mode) {
+                checkBtn.textContent = 'Check for Updates';
+                checkBtn.classList.remove('btn-warning');
             }
 
         } catch (error) {
@@ -918,6 +927,39 @@ const storageTab = {
         const percentage = stepPercentages[data.step] || 50;
 
         this._updateProgress(data.step, message, percentage);
+    },
+
+    /** Setup visibility change detection to refresh status when tab becomes active. */
+    _setupVisibilityCheck() {
+        if (typeof document.addEventListener !== 'function') return;
+        
+        let wasHidden = document.hidden;
+        const handleVisibilityChange = () => {
+            // Only refresh when coming back from hidden state
+            if (wasHidden && !document.hidden) {
+                // Small delay to allow any external changes to settle
+                setTimeout(() => {
+                    this.checkForUpdates();
+                }, 1000);
+            }
+            wasHidden = document.hidden;
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Also refresh when the storage tab is clicked (in case user switched tabs)
+        const tabBtn = document.querySelector('[data-tab="storage"]');
+        if (tabBtn && !tabBtn._updateRefreshBound) {
+            const originalClick = tabBtn.onclick;
+            tabBtn.onclick = (e) => {
+                if (originalClick) originalClick.call(tabBtn, e);
+                // Refresh updates when switching to system tab
+                setTimeout(() => {
+                    this.checkForUpdates();
+                }, 500);
+            };
+            tabBtn._updateRefreshBound = true;
+        }
     },
 };
 

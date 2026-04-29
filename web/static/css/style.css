@@ -3776,6 +3776,8 @@ body:not(.mobile-view) .ch-name {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
+    overflow: hidden; /* Prevent content from overflowing */
+    box-sizing: border-box;
 }
 
 .system-update-section h3 {
@@ -3827,6 +3829,8 @@ body:not(.mobile-view) .ch-name {
 /* Update Controls */
 .update-controls {
     display: block;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .update-controls.hidden {
@@ -3953,13 +3957,18 @@ body:not(.mobile-view) .ch-name {
 /* Update Actions */
 .update-actions {
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
     margin-bottom: 1rem;
 }
 
 .update-actions .btn {
     flex: 1;
-    max-width: 200px;
+    min-width: 0;
+    max-width: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .btn-outline-primary {
@@ -4059,10 +4068,23 @@ body:not(.mobile-view) .ch-name {
     
     .update-actions {
         flex-direction: column;
+        gap: 0.5rem;
     }
     
     .update-actions .btn {
+        flex: none;
         max-width: none;
+    }
+}
+
+/* Smaller screens - stack buttons vertically when they don't fit */
+@media (max-width: 600px) {
+    .update-actions {
+        flex-direction: column;
+    }
+    
+    .update-actions .btn {
+        flex: none;
     }
 }
 
