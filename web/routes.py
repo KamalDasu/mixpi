@@ -119,7 +119,7 @@ def _get_git_version() -> dict:
     stamp = Path(__file__).resolve().parent / 'mixpi_version.json'
     sem_tag = f'v{semver}'
 
-    short, date = '', ''
+    short, date, describe = '', '', ''
     try:
         short = subprocess.check_output(
             ['git', '-C', str(repo), 'rev-parse', '--short=7', 'HEAD'],
@@ -127,6 +127,10 @@ def _get_git_version() -> dict:
         ).strip()
         date = subprocess.check_output(
             ['git', '-C', str(repo), 'log', '-1', '--format=%cd', '--date=short'],
+            stderr=subprocess.DEVNULL, text=True, timeout=5
+        ).strip()
+        describe = subprocess.check_output(
+            ['git', '-C', str(repo), 'describe', '--tags', '--always'],
             stderr=subprocess.DEVNULL, text=True, timeout=5
         ).strip()
     except Exception:
@@ -146,7 +150,7 @@ def _get_git_version() -> dict:
                 pass
 
     ver = f"{sem_tag}-{date} ({short})" if date else f"{sem_tag} ({short})"
-    return {'version': ver, 'hash': short, 'date': date, 'semver': sem_tag}
+    return {'version': ver, 'hash': short, 'date': date, 'semver': sem_tag, 'describe': describe}
 
 
 def _is_raspberry_pi() -> bool:

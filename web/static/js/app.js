@@ -104,14 +104,32 @@ function initBuildVersion() {
             const el = document.getElementById('build-version');
             if (!el || !data.hash) return;
             const ver = data.semver || 'v1.0';
-            let tag = `${ver} (${data.hash})`;
+            // Format date suffix as "Mon0626" when a date is available
+            let dateSuffix = '';
             if (data.date) {
                 const d = new Date(data.date + 'T00:00:00');
                 const mon = ['Jan','Feb','Mar','Apr','May','Jun',
                              'Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
                 const dd  = String(d.getDate()).padStart(2, '0');
                 const yy  = String(d.getFullYear()).slice(-2);
-                tag = `${ver}-${mon}${dd}${yy} (${data.hash})`;
+                dateSuffix = `${mon}${dd}${yy}`;
+            }
+            let tag;
+            const desc = data.describe || '';
+            const mDesc = desc.match(/^(v[\d.]+)-(\d+)-g([0-9a-f]+)$/);
+            if (mDesc) {
+                // Ahead of a stable tag: "v1.0.2 +5 (993e884) May0626"
+                tag = dateSuffix
+                    ? `${mDesc[1]} +${mDesc[2]} (${data.hash}) ${dateSuffix}`
+                    : `${mDesc[1]} +${mDesc[2]} (${data.hash})`;
+            } else if (/^v\d+\.\d+\.\d+$/.test(desc)) {
+                // Exactly on a stable tag: "v1.0.2 (993e884)"
+                tag = `${ver} (${data.hash})`;
+            } else {
+                // rsync/no-git deploy: "v1.0.2 (993e884) May0626"
+                tag = dateSuffix
+                    ? `${ver} (${data.hash}) ${dateSuffix}`
+                    : `${ver} (${data.hash})`;
             }
             el.textContent = tag;
         })
