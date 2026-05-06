@@ -71,8 +71,13 @@ if $GIT_ONLY; then
         exit 1
     fi
     echo "  Updating Pi from GitHub (fetch + reset --hard origin/main)…"
-    if ! ssh "$REMOTE" "cd $REMOTE_DIR && sudo git fetch origin main && sudo git reset --hard origin/main"; then
-        echo -e "  ${YELLOW}⚠  git update failed (network, credentials, or sudo password on Pi).${NC}"
+    # Run git as the repo owner (no sudo) so .git/objects stay user-owned.
+    # The app (git_updater.py) also runs as the same user; root-owned objects
+    # cause "insufficient permission" errors on subsequent app-initiated fetches.
+    if ! ssh "$REMOTE" "cd $REMOTE_DIR && git fetch origin main && git reset --hard origin/main"; then
+        echo -e "  ${YELLOW}⚠  git update failed (network or credentials on Pi).${NC}"
+        echo -e "  ${YELLOW}   If you see a permission error, repair with:${NC}"
+        echo -e "  ${CYAN}   ssh $REMOTE 'sudo chown -R \$(whoami):\$(whoami) $REMOTE_DIR/.git'${NC}"
         exit 1
     fi
     echo ""
