@@ -401,9 +401,12 @@ def checkout_version(target: str, force: bool = False) -> Tuple[bool, str]:
         # Perform checkout (with force if needed)
         logger.info(f"Attempting checkout from {current_commit[:8]} to {target}")
         
-        if force and target == 'main':
-            # For main branch with force, reset hard to origin/main
-            _run_git_command(['reset', '--hard', checkout_ref])
+        if target == 'main':
+            # Use checkout -B so HEAD stays on the local 'main' branch rather than
+            # detaching.  'git checkout origin/main' would leave a detached HEAD,
+            # causing git branch --show-current to return '' and breaking the
+            # version display in the UI.
+            _run_git_command(['checkout', '-B', 'main', checkout_ref])
         else:
             _run_git_command(['checkout', checkout_ref])
         

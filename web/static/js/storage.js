@@ -373,7 +373,14 @@ const storageTab = {
             return ver ? `Up to date — stable release (${ver})` : 'Up to date — stable release';
         }
         const br = data.current && data.current.branch;
-        if (br === 'main') {
+        // Also treat detached HEAD at origin/main tip as "on main" — this happens
+        // when a previous version of the app used 'git checkout origin/main' instead
+        // of 'git checkout -B main origin/main'.
+        const betaLatest = data.beta && data.beta.latest_commit;
+        const curCommit  = data.current && data.current.commit;
+        const isDetachedAtMain = !br && betaLatest && curCommit &&
+            betaLatest.slice(0, 8) === curCommit.slice(0, 8);
+        if (br === 'main' || isDetachedAtMain) {
             const desc = data.current && data.current.describe;
             const m = desc && desc.match(/^(v[\d.]+)-(\d+)-g([0-9a-f]+)$/);
             if (m) {
