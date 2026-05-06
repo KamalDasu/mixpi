@@ -362,16 +362,31 @@ const storageTab = {
 
     /**
      * Primary status text when no newer stable tag is pending — emphasizes stable release vs main.
+     *
+     * When on main but ahead of the latest stable tag we format the git-describe string
+     * (e.g. v1.0.2-2-g7a356d0) as "v1.0.2 +2 commits, 7a356d0" so it is unambiguous that
+     * HEAD is not the stable release.
      */
     _upToDatePrimaryMessage(data) {
-        const ver = this._upToDateLabel(data);
         if (this._isOnStableTag(data)) {
+            const ver = this._upToDateLabel(data);
             return ver ? `Up to date — stable release (${ver})` : 'Up to date — stable release';
         }
         const br = data.current && data.current.branch;
         if (br === 'main') {
+            const desc = data.current && data.current.describe;
+            const m = desc && desc.match(/^(v[\d.]+)-(\d+)-g([0-9a-f]+)$/);
+            if (m) {
+                const stableTag = m[1];
+                const n = parseInt(m[2], 10);
+                const hash = m[3];
+                const unit = n === 1 ? 'commit' : 'commits';
+                return `Up to date — on main (${stableTag} +${n} ${unit}, ${hash})`;
+            }
+            const ver = this._upToDateLabel(data);
             return ver ? `Up to date — on main (${ver})` : 'Up to date — on main';
         }
+        const ver = this._upToDateLabel(data);
         return ver ? `Up to date (${ver})` : 'Up to date';
     },
 
