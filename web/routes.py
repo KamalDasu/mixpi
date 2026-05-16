@@ -40,27 +40,23 @@ _bounce_lock = threading.Lock()
 # Clipped to ±1.0 before PCM16 encode (same as turning up a digital fader).
 STEREO_BOUNCE_PLAYBACK_GAIN = 10 ** (1.5 / 20.0)  # +1.5 dB (~1.19×)
 
-# Extra dB on stereo mix share exports only (bounce/export, download-mixes zip) — not
-# bounce/download (DAW), not the file on disk. Overridden by web.stereo_mix_export_gain_db.
-_DEFAULT_STEREO_MIX_EXPORT_GAIN_DB = 4.0
-
-
-def _stereo_mix_export_gain_db() -> float:
-    try:
-        v = float(_web_settings.get('stereo_mix_export_gain_db', _DEFAULT_STEREO_MIX_EXPORT_GAIN_DB))
-    except (TypeError, ValueError):
-        v = _DEFAULT_STEREO_MIX_EXPORT_GAIN_DB
-    return max(0.0, v)
+# Loudness target for share exports (m4a / mp3 / boosted wav).
+# Matches the Spotify / Apple Music streaming standard.
+# -1 dBTP true-peak leaves headroom for AAC inter-sample peaks.
+# Set stereo_mix_export_loudnorm=0 in web settings to disable.
+# Filter chain for share exports (m4a / mp3 / boosted wav):
+#   1. loudnorm  — target -14 LUFS / -1 dBTP (streaming standard, no clipping)
+#   2. bass      — +5 dB low shelf at 150 Hz (kick drum thud + bass guitar body)
+#   3. treble    — +5 dB high shelf at 6 kHz (presence, air, cymbal detail)
+_LOUDNORM_FILTER = 'loudnorm=I=-14:TP=-1:LRA=11,bass=g=5:f=150,treble=g=5:f=6000'
 
 
 def _ffmpeg_stereo_mix_export_filter_args() -> list[str]:
-    """Return ffmpeg args [-af, …] for listening-oriented exports, or [] if disabled."""
-    db = _stereo_mix_export_gain_db()
-    if db <= 0.0:
+    """Return ffmpeg -af args for listening-oriented exports, or [] if disabled."""
+    enabled = _web_settings.get('stereo_mix_export_loudnorm', True)
+    if not enabled:
         return []
-    # Limiter catches inter-sample peaks after the boost (AAC/MP3 / phone playback).
-    filt = f'volume={db}dB,alimiter=limit=1:attack=1:release=100'
-    return ['-af', filt]
+    return ['-af', _LOUDNORM_FILTER]
 
 
 def _get_update_pin() -> str:
@@ -1161,7 +1157,7 @@ def download_bounce(session_name):
 def export_bounce(session_name):
     """
     Export the stereo mix in a chosen format for sharing / AirDrop.
-    ?format=wav  — PCM stereo WAV (lossless; when stereo_mix_export_gain_db > 0, boosted via ffmpeg)
+    ?format=wav  — PCM stereo WAV (lossless; loudnorm applied when enabled)
     ?format=m4a  — AAC 256 kbps inside an M4A container (small, plays everywhere)
     ?format=mp3  — MP3 320 kbps
     """

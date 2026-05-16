@@ -26,9 +26,9 @@ web:
   debug: false          # set true only for local development
   # If true, POST /api/system/exit-kiosk works from any client (trusted LAN only).
   allow_exit_kiosk_from_lan: false
-  # Extra dB on stereo mix share exports (bounce/export, stereo-mix ZIP) for phone listening.
-  # Does not change bounce/download (DAW) or the stereo_mix.wav on disk. Set 0 to disable.
-  stereo_mix_export_gain_db: 4.0
+  # Apply loudnorm (-14 LUFS / -1 dBTP) to stereo mix share exports (m4a, mp3, boosted wav).
+  # Produces streaming-ready levels regardless of input level. Set false to disable.
+  stereo_mix_export_loudnorm: true
   # Optional 4-digit PIN (0-9 only) for future in-app / browser updates. Leave empty or omit
   # so update actions do not require a PIN (use only on a trusted LAN if unset).
   update_pin: ""
