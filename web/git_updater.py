@@ -139,7 +139,10 @@ def fetch_updates() -> Tuple[bool, str]:
         Tuple of (success, message)
     """
     try:
-        _run_git_command(['fetch', 'origin'], timeout=60)
+        # --tags --force ensures moved/updated tags are refreshed locally.
+        # Without --force, git skips tags that already exist locally even if
+        # they have been moved on the remote (e.g. after a tag re-point).
+        _run_git_command(['fetch', 'origin', '--tags', '--force'], timeout=60)
         logger.info("Successfully fetched updates from origin")
         return True, "Successfully fetched updates"
     except GitUpdateError as e:
