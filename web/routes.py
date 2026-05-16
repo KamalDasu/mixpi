@@ -110,7 +110,17 @@ def _get_git_version() -> dict:
     (written by scripts/sync.sh before rsync) so deployed trees without .git
     still show the correct build stamp.
     """
-    from web import __version__ as semver
+    # Read __version__ directly from __init__.py instead of using the Python
+    # import cache — the cached module retains the old value after a git
+    # checkout until the service restarts, causing the banner and update panel
+    # to display the previous version number.
+    init_py = Path(__file__).resolve().parent / '__init__.py'
+    try:
+        m = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']',
+                      init_py.read_text(encoding='utf-8'), re.MULTILINE)
+        semver = m.group(1) if m else '1.0'
+    except Exception:
+        from web import __version__ as semver  # fallback to cached import
     repo = Path(__file__).resolve().parent.parent
     stamp = Path(__file__).resolve().parent / 'mixpi_version.json'
     sem_tag = f'v{semver}'
