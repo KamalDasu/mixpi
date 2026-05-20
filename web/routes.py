@@ -214,7 +214,7 @@ def _remote_addr_is_recorder_host(addr: str) -> bool:
 
 def _find_xr18_alsa_device() -> str:
     """
-    Return the ALSA device string (e.g. 'hw:3,0') for the XR18.
+    Return the ALSA device string (e.g. 'hw:3,0') for the XR18/X18.
     Parses `aplay -l` output so we don't hard-code the card number.
     Falls back to 'hw:3,0' if parsing fails.
     """
@@ -231,6 +231,35 @@ def _find_xr18_alsa_device() -> str:
     except Exception:
         pass
     return 'hw:3,0'
+
+
+def _get_xr18_playback_format(alsa_dev: str):
+    """
+    Auto-detect the native playback format for this X18/XR18 hardware.
+
+    X18 v1  → S32_LE (4 bytes/sample, 32-bit container, scale 2^31-1)
+    XR18 v2 → S24_3LE (3 bytes/sample, packed 24-bit,   scale 2^23-1)
+
+    Returns (fmt_str, bytes_per_sample, scale, clip_min).
+    """
+    import re
+    try:
+        m = re.match(r'hw:(\d+)', alsa_dev)
+        if m:
+            stream = Path(f'/proc/asound/card{m.group(1)}/stream0').read_text()
+            # Only look inside the Playback section
+            pb_section = stream.split('Playback:')[1] if 'Playback:' in stream else stream
+            fmt_match  = re.search(r'Format:\s+(\S+)', pb_section)
+            if fmt_match:
+                fmt = fmt_match.group(1)
+                if fmt == 'S32_LE':
+                    return 'S32_LE', 4, 2147483647, -2147483648
+                if fmt == 'S24_3LE':
+                    return 'S24_3LE', 3, 8388607, -8388608
+    except Exception:
+        pass
+    # Default: XR18 v2 packed 24-bit
+    return 'S24_3LE', 3, 8388607, -8388608
 
 # ---------------------------------------------------------------------------
 # Recording quality presets
@@ -1298,7 +1327,8 @@ def _play_via_usb(file_path: Path, start_frame: int = 0) -> None:
         total_frames = info.frames
 
         alsa_dev = _find_xr18_alsa_device()
-        logger.info(f"USB playback → {alsa_dev}  sr={sr}  frames={total_frames}  start={start_frame}")
+        fmt, bps, scale, clip_min = _get_xr18_playback_format(alsa_dev)
+        logger.info(f"USB playback → {alsa_dev}  fmt={fmt}  sr={sr}  frames={total_frames}  start={start_frame}")
 
         # Expose total/sr immediately so the status endpoint shows correct duration
         _playback_total = total_frames
@@ -1307,16 +1337,13 @@ def _play_via_usb(file_path: Path, start_frame: int = 0) -> None:
         start_frame = max(0, min(start_frame, total_frames))
         _playback_position = start_frame
 
-        # XR18 requires S24_3LE (packed 24-bit LE, 18 ch, 48 kHz).
-        # Process in 4096-frame chunks — ~85 ms per chunk at 48 kHz.
-        # Peak memory per chunk ≈ 300 KB instead of ~1.2 GB for the whole file.
+        # Process in 4096-frame chunks (~85 ms at 48 kHz, ~300 KB peak per chunk).
         n_out        = 18
-        scale        = 8388607  # 2^23 - 1  (24-bit signed max)
         chunk_frames = 4096
 
         proc = subprocess.Popen(
             ['/usr/bin/aplay', '-D', alsa_dev,
-             '-c', str(n_out), '-r', str(sr), '-f', 'S24_3LE', '-q', '-'],
+             '-c', str(n_out), '-r', str(sr), '-f', fmt, '-q', '-'],
             stdin=subprocess.PIPE,
         )
         _playback_process = proc
@@ -1328,12 +1355,17 @@ def _play_via_usb(file_path: Path, start_frame: int = 0) -> None:
                                    always_2d=True, fill_value=0.0):
                 if _playback_stop.is_set():
                     break
-                # Map stereo → 18-ch S24_3LE
+                # Map stereo float → 18-ch int32
                 out = np.zeros((len(block), n_out), dtype='int32')
-                out[:, 16] = np.clip(block[:, 0] * scale, -8388608, scale).astype(np.int32)
-                out[:, 17] = np.clip(block[:, 1] * scale, -8388608, scale).astype(np.int32)
-                u8 = np.frombuffer(out.tobytes(), dtype=np.uint8).reshape(-1, 4)
-                proc.stdin.write(np.ascontiguousarray(u8[:, :3]).tobytes())
+                out[:, 16] = np.clip(block[:, 0] * scale, clip_min, scale).astype(np.int32)
+                out[:, 17] = np.clip(block[:, 1] * scale, clip_min, scale).astype(np.int32)
+                if bps == 3:
+                    # S24_3LE: strip the MSB (sign-extension byte) from each int32
+                    u8 = np.frombuffer(out.tobytes(), dtype=np.uint8).reshape(-1, 4)
+                    proc.stdin.write(np.ascontiguousarray(u8[:, :3]).tobytes())
+                else:
+                    # S32_LE: send full 4-byte int32
+                    proc.stdin.write(out.tobytes())
                 pos += len(block)
                 _playback_position = pos
         except BrokenPipeError:
