@@ -142,23 +142,23 @@ def fetch_updates() -> Tuple[bool, str]:
         # --tags --force ensures moved/updated tags are refreshed locally.
         # Without --force, git skips tags that already exist locally even if
         # they have been moved on the remote (e.g. after a tag re-point).
-        _run_git_command(['fetch', 'origin', '--tags', '--force'], timeout=60)
+        _run_git_command(['fetch', 'origin', '--tags', '--force'], timeout=12)
         logger.info("Successfully fetched updates from origin")
         return True, "Successfully fetched updates"
     except GitUpdateError as e:
         error_msg = str(e).lower()
         
-        # Check for common network/connectivity issues
+        # Map common network/connectivity failures to a clean offline message
         if any(phrase in error_msg for phrase in [
             'network is unreachable', 'temporary failure in name resolution',
             'could not resolve hostname', 'connection timed out',
-            'no route to host', 'connection refused'
+            'no route to host', 'connection refused', 'timed out'
         ]):
             logger.warning(f"Network connectivity issue during fetch: {e}")
-            return False, "No internet connection - working with locally cached versions"
+            return False, "No internet connection"
         else:
             logger.error(f"Git fetch failed: {e}")
-            return False, f"Failed to fetch updates: {e}"
+            return False, f"Fetch failed: {e}"
 
 
 def list_available_versions(offline_mode: bool = False) -> Dict[str, any]:

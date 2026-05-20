@@ -527,14 +527,13 @@ const storageTab = {
             const betaPending = !!(data.beta && data.beta.available);
 
             if (data.offline_mode) {
-                let statusText = `Offline — ${data.fetch_message}`;
-                if (data.stable.length > 0) {
-                    statusText += ` (${data.stable.length} cached)`;
-                }
-                this._setUpdateStatus('offline', statusText);
+                const cached = data.stable && data.stable.length > 0
+                    ? ` · ${data.stable.length} version${data.stable.length > 1 ? 's' : ''} cached`
+                    : '';
+                this._setUpdateStatus('offline', `Offline — ${data.fetch_message}${cached}`);
                 this._hideUpdateBetaLine();
                 if (checkBtn) {
-                    checkBtn.textContent = 'Retry Check (Online)';
+                    checkBtn.textContent = 'Retry';
                     checkBtn.classList.add('btn-warning');
                 }
             } else if (stablePending) {
@@ -575,7 +574,9 @@ const storageTab = {
         } finally {
             if (checkBtn) {
                 checkBtn.disabled = false;
-                if (!statusWrap.classList.contains('offline')) {
+                if (statusWrap && statusWrap.classList.contains('offline')) {
+                    checkBtn.textContent = 'Retry';
+                } else {
                     checkBtn.textContent = 'Check for Updates';
                     checkBtn.classList.remove('btn-warning');
                 }

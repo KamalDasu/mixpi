@@ -2575,22 +2575,26 @@ body:not(.mobile-view) .ch-name {
     padding: 10px 12px;
     font-size: 0.78rem;
 }
-.routing-tip-fader { border-left-color: #9d7eff; }
+.routing-tip-fader  { border-left-color: #9d7eff; }
+.routing-tip-mixer  { border-left-color: #4fc3f7; }
 .routing-tip-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
-.routing-tip-body { color: var(--text-secondary); line-height: 1.5; }
-.routing-tip-body strong { color: var(--text-primary); }
+.routing-tip-body { color: rgba(255,255,255,0.88); line-height: 1.55; }
+.routing-tip-body strong { color: #fff; font-size: 0.82rem; }
 .routing-tip-body em { color: var(--accent); font-style: normal; font-weight: 600; }
-.routing-tip-desc { margin: 4px 0 8px; font-size: 0.78rem; color: var(--text-secondary); }
+.routing-tip-desc { margin: 5px 0 8px; font-size: 0.78rem; color: rgba(255,255,255,0.78); }
 .routing-tip-list {
-    margin: 4px 0 6px 14px;
+    margin: 5px 0 7px 16px;
     padding: 0;
-    color: var(--text-dim);
-    font-size: 0.75rem;
+    color: rgba(255,255,255,0.82);
+    font-size: 0.76rem;
+    line-height: 1.6;
 }
-.routing-tip-list li { margin-bottom: 2px; }
+.routing-tip-list li { margin-bottom: 3px; }
 .routing-tip-note {
+    display: block;
+    margin-top: 6px;
     font-size: 0.72rem;
-    color: var(--text-dim);
+    color: rgba(255,255,255,0.55);
     font-style: italic;
 }
 

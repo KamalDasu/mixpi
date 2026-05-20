@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.json">
     <title>MixPi Recorder</title>
-    <link rel="stylesheet" href="css/style.css?v=20260519f">
+    <link rel="stylesheet" href="css/style.css?v=20260520">
     <link rel="stylesheet" href="css/touchscreen.css?v=20260441">
 </head>
 <body>
@@ -448,6 +448,21 @@
                         </div>
                     </div>
 
+                    <div class="routing-tip routing-tip-mixer">
+                        <div class="routing-tip-icon">🔊</div>
+                        <div class="routing-tip-body">
+                            <strong>Mixer playback — hearing the stereo mix through the XR18:</strong>
+                            <p class="routing-tip-desc">Pressing <em>▶ Mixer</em> sends the recorded stereo mix back to the XR18 on USB channels 17/18. To hear it through the main outputs, configure the XR18 as follows:</p>
+                            <ul class="routing-tip-list">
+                                <li>USB 17/18 return appears as the <em>AUX</em> stereo input channel on the XR18</li>
+                                <li>In X Air Edit → select the <em>AUX</em> channel → set its input source to <em>USB</em></li>
+                                <li>Bring up the <em>AUX</em> fader on the main mix bus to the desired level</li>
+                                <li>The raw unprocessed mix is played back — use the mixer's own EQ &amp; faders to optimise in real time</li>
+                            </ul>
+                            <span class="routing-tip-note">Use ⏸ to pause and ▶ to resume from the same position. The Mixer button turns red while active.</span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Hidden elements kept for JS compatibility -->
@@ -602,7 +617,7 @@
 <script src="js/recorder.js?v=202604091"></script>
 <script src="js/sessions.js?v=20260519f"></script>
 <script src="js/routing.js"></script>
-<script src="js/storage.js?v=20260456"></script>
+<script src="js/storage.js?v=20260520"></script>
 <script src="js/app.js?v=20260506"></script>
 </body>
 </html>
