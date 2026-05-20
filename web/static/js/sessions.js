@@ -6,9 +6,12 @@
 class SessionsManager {
     constructor() {
         this.shows = [];
-        this._bouncePollers  = {};   // rel_path -> interval id
-        this._mixerPoller    = null; // interval id for mixer timeline polling
-        this._mixerRelPath   = null; // rel_path of the session playing on mixer
+        this._bouncePollers  = {};    // rel_path -> interval id
+        this._mixerPoller    = null;  // interval id for mixer timeline polling
+        this._mixerRelPath   = null;  // rel_path of the session playing on mixer
+        this._mixerPaused    = false; // true while paused (bar stays visible)
+        this._pausedFraction = 0;     // playback fraction at pause time
+        this._seekDragging   = false; // true while user is dragging the seek thumb
     }
 
     async loadSessions() {
@@ -394,30 +397,25 @@ class SessionsManager {
     // ----------------------------------------------------------------
 
     async handleMixerPlay(relPath) {
-        const btn = document.getElementById(`mixer-btn-${this._safeId(relPath)}`);
+        // If this session's bar is already showing (playing or paused) ignore the click —
+        // the bar's own pause/stop buttons handle everything.
+        if (this._mixerRelPath === relPath) return;
 
-        // If something is already playing on the mixer, stop it
+        // A different session was active — tear it down first.
         if (this._mixerRelPath) {
-            const wasPlaying = this._mixerRelPath; // capture before _stopMixerTimeline nullifies it
             this._stopMixerTimeline();
             await fetch('/api/playback/stop', { method: 'POST' }).catch(() => {});
-            // If the user clicked the same card's button, just stop
-            if (wasPlaying === relPath) return;
         }
-
-        if (btn) btn.innerHTML = '&#9646;&#9646; Stop';
 
         try {
             const res  = await fetch(`/api/sessions/${relPath}/playback/start`, { method: 'POST' });
             const data = await res.json();
             if (!data.success) {
                 alert('Mixer playback failed: ' + (data.message || ''));
-                if (btn) btn.innerHTML = '&#9654; Mixer';
                 return;
             }
         } catch (err) {
             alert('Error starting mixer playback: ' + err.message);
-            if (btn) btn.innerHTML = '&#9654; Mixer';
             return;
         }
 
@@ -433,18 +431,25 @@ class SessionsManager {
         // Inject the timeline bar below the action buttons
         const existing = document.getElementById(`mixer-timeline-${safeId}`);
         if (!existing) {
+            const safePath = this._esc(relPath);
             const tl = document.createElement('div');
             tl.className = 'mixer-timeline';
             tl.id        = `mixer-timeline-${safeId}`;
             tl.innerHTML = `
-                <div class="mixer-tl-bar">
-                    <div class="mixer-tl-fill" id="mixer-tl-fill-${safeId}" style="width:0%"></div>
+                <div class="mixer-tl-row">
+                    <button class="mixer-tl-btn mixer-tl-pp-btn" id="mixer-tl-pp-${safeId}" title="Pause">⏸</button>
+                    <div class="mixer-tl-bar" id="mixer-tl-bar-${safeId}" title="Click or drag to seek">
+                        <div class="mixer-tl-fill"    id="mixer-tl-fill-${safeId}"  style="width:0%"></div>
+                        <div class="mixer-tl-thumb"   id="mixer-tl-thumb-${safeId}" style="left:0%"></div>
+                        <div class="mixer-tl-tooltip" id="mixer-tl-tip-${safeId}">0:00</div>
+                    </div>
+                    <button class="mixer-tl-btn mixer-tl-stop-btn" id="mixer-tl-stop-${safeId}" title="Stop">⏹</button>
                 </div>
                 <div class="mixer-tl-info">
-                    <span class="mixer-tl-pos"  id="mixer-tl-pos-${safeId}">0:00</span>
+                    <span class="mixer-tl-pos"   id="mixer-tl-pos-${safeId}">0:00</span>
                     <span class="mixer-tl-sep">/</span>
-                    <span class="mixer-tl-dur"  id="mixer-tl-dur-${safeId}">—</span>
-                    <span class="mixer-tl-label">▶ Playing on mixer</span>
+                    <span class="mixer-tl-dur"   id="mixer-tl-dur-${safeId}">—</span>
+                    <span class="mixer-tl-label" id="mixer-tl-label-${safeId}">▶ Playing on mixer</span>
                 </div>
             `;
             // Insert right after .session-actions
@@ -454,31 +459,177 @@ class SessionsManager {
             } else if (actions) {
                 card.appendChild(tl);
             }
+
+            // Pause / Stop buttons
+            document.getElementById(`mixer-tl-pp-${safeId}`)
+                ?.addEventListener('click', () => this._toggleMixerPause(relPath, safeId));
+            document.getElementById(`mixer-tl-stop-${safeId}`)
+                ?.addEventListener('click', () => this._fullStopMixer());
+
+            // Wire up seek interaction on the bar
+            this._attachSeekHandlers(relPath, safeId);
         }
 
-        // Poll every second
+        // Poll every 500 ms for smoother position updates.
+        // Skip visual update while dragging; keep bar alive while paused.
         this._mixerPoller = setInterval(async () => {
             try {
                 const st = await (await fetch('/api/playback/status')).json();
-                this._updateMixerTimeline(safeId, st);
-                if (!st.playing) this._stopMixerTimeline();
+                if (!this._seekDragging) this._updateMixerTimeline(safeId, st);
+                if (!st.playing && !this._mixerPaused) this._stopMixerTimeline();
             } catch (_) {
-                this._stopMixerTimeline();
+                if (!this._mixerPaused) this._stopMixerTimeline();
             }
-        }, 1000);
+        }, 500);
+    }
+
+    _attachSeekHandlers(relPath, safeId) {
+        const bar = document.getElementById(`mixer-tl-bar-${safeId}`);
+        if (!bar) return;
+
+        let dragging    = false;
+        let dragFraction = 0;
+
+        const fracToTime = (fraction) => {
+            const durEl = document.getElementById(`mixer-tl-dur-${safeId}`);
+            const [m, s] = (durEl ? durEl.textContent : '').split(':').map(Number);
+            return this._fmtSec(Math.round(fraction * (((m || 0) * 60) + (s || 0))));
+        };
+
+        const updateBarVisual = (fraction) => {
+            fraction = Math.max(0, Math.min(1, fraction));
+            const fill  = document.getElementById(`mixer-tl-fill-${safeId}`);
+            const thumb = document.getElementById(`mixer-tl-thumb-${safeId}`);
+            const tip   = document.getElementById(`mixer-tl-tip-${safeId}`);
+            if (fill)  fill.style.width = `${fraction * 100}%`;
+            if (thumb) thumb.style.left = `${fraction * 100}%`;
+            if (tip)  { tip.style.left = `${fraction * 100}%`; tip.textContent = fracToTime(fraction); }
+        };
+
+        const setDragTransition = (isDragging) => {
+            const fill  = document.getElementById(`mixer-tl-fill-${safeId}`);
+            const thumb = document.getElementById(`mixer-tl-thumb-${safeId}`);
+            const tip   = document.getElementById(`mixer-tl-tip-${safeId}`);
+            const t = isDragging ? 'none' : '';
+            if (fill)  fill.style.transition  = t;
+            if (thumb) thumb.style.transition = t;
+            if (tip)   tip.classList.toggle('visible', isDragging);
+        };
+
+        const commitSeek = async (fraction) => {
+            fraction = Math.max(0, Math.min(1, fraction));
+            try {
+                await fetch(`/api/sessions/${relPath}/playback/seek`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ fraction }),
+                });
+            } catch (_) {}
+            this._seekDragging = false;
+            setDragTransition(false);
+        };
+
+        const fractionFromEvent = (clientX) => {
+            const rect = bar.getBoundingClientRect();
+            return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        };
+
+        bar.addEventListener('mousedown', (e) => {
+            dragging           = true;
+            this._seekDragging = true;
+            dragFraction       = fractionFromEvent(e.clientX);
+            setDragTransition(true);
+            updateBarVisual(dragFraction);
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            dragFraction = fractionFromEvent(e.clientX);
+            updateBarVisual(dragFraction);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            commitSeek(dragFraction);
+        });
+
+        // Touch support
+        bar.addEventListener('touchstart', (e) => {
+            dragging           = true;
+            this._seekDragging = true;
+            dragFraction       = fractionFromEvent(e.touches[0].clientX);
+            setDragTransition(true);
+            updateBarVisual(dragFraction);
+            e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            dragFraction = fractionFromEvent(e.touches[0].clientX);
+            updateBarVisual(dragFraction);
+        });
+
+        document.addEventListener('touchend', () => {
+            if (!dragging) return;
+            dragging = false;
+            commitSeek(dragFraction);
+        });
+    }
+
+    async _toggleMixerPause(relPath, safeId) {
+        const ppBtn = document.getElementById(`mixer-tl-pp-${safeId}`);
+        const label = document.getElementById(`mixer-tl-label-${safeId}`);
+
+        if (!this._mixerPaused) {
+            // Capture position then stop
+            try {
+                const st = await (await fetch('/api/playback/status')).json();
+                this._pausedFraction = (st.progress_pct || 0) / 100;
+            } catch (_) { this._pausedFraction = 0; }
+            await fetch('/api/playback/stop', { method: 'POST' }).catch(() => {});
+            this._mixerPaused = true;
+            if (ppBtn) { ppBtn.textContent = '▶'; ppBtn.title = 'Resume'; }
+            if (label) label.textContent = '⏸ Paused';
+        } else {
+            // Resume from saved position
+            this._mixerPaused = false;
+            if (ppBtn) { ppBtn.textContent = '⏸'; ppBtn.title = 'Pause'; }
+            if (label) label.textContent = '▶ Playing on mixer';
+            try {
+                await fetch(`/api/sessions/${relPath}/playback/seek`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ fraction: this._pausedFraction }),
+                });
+            } catch (_) {}
+        }
+    }
+
+    async _fullStopMixer() {
+        this._mixerPaused    = false;
+        this._pausedFraction = 0;
+        await fetch('/api/playback/stop', { method: 'POST' }).catch(() => {});
+        this._stopMixerTimeline();
     }
 
     _updateMixerTimeline(safeId, st) {
-        const fill = document.getElementById(`mixer-tl-fill-${safeId}`);
-        const pos  = document.getElementById(`mixer-tl-pos-${safeId}`);
-        const dur  = document.getElementById(`mixer-tl-dur-${safeId}`);
-        if (fill) fill.style.width = `${st.progress_pct || 0}%`;
-        if (pos)  pos.textContent  = this._fmtSec(st.position_sec || 0);
-        if (dur)  dur.textContent  = this._fmtSec(st.duration_sec || 0);
+        const pct   = st.progress_pct || 0;
+        const fill  = document.getElementById(`mixer-tl-fill-${safeId}`);
+        const thumb = document.getElementById(`mixer-tl-thumb-${safeId}`);
+        const pos   = document.getElementById(`mixer-tl-pos-${safeId}`);
+        const dur   = document.getElementById(`mixer-tl-dur-${safeId}`);
+        if (fill)  fill.style.width = `${pct}%`;
+        if (thumb) thumb.style.left = `${pct}%`;
+        if (pos)   pos.textContent  = this._fmtSec(st.position_sec || 0);
+        if (dur)   dur.textContent  = this._fmtSec(st.duration_sec || 0);
     }
 
     _stopMixerTimeline() {
         if (this._mixerPoller) { clearInterval(this._mixerPoller); this._mixerPoller = null; }
+        this._mixerPaused    = false;
+        this._pausedFraction = 0;
         const safeId = this._safeId(this._mixerRelPath || '');
 
         // Remove the timeline element

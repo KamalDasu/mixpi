@@ -1270,7 +1270,7 @@ def downmix_session(session_name):
 # USB hardware playback  (Play on Mixer → XR18 Aux via USB 17/18)
 # ---------------------------------------------------------------------------
 
-def _play_via_usb(file_path: Path) -> None:
+def _play_via_usb(file_path: Path, start_frame: int = 0) -> None:
     """
     Play stereo_mix.wav through XR18 USB channels 17/18 (Aux L/R) using aplay.
 
@@ -1278,49 +1278,64 @@ def _play_via_usb(file_path: Path) -> None:
     crash that occurs when a PortAudio OutputStream is opened on the same hw:
     device that the recording InputStream already holds.  aplay opens only the
     PLAYBACK PCM direction and coexists with the capture stream cleanly.
+
+    Audio is streamed in small chunks so aplay starts in milliseconds and the
+    process never allocates the entire file worth of numpy arrays at once.
+
+    start_frame: frame offset to begin playback from (0 = beginning).
     """
     global _playback_position, _playback_total, _playback_sr, _playback_process
     import soundfile as sf
     import numpy as np
 
-    _playback_position = 0
+    _playback_position = start_frame
     _playback_total    = 0
     _playback_process  = None
 
     try:
-        data, sr = sf.read(str(file_path), dtype='float32', always_2d=True)
+        info = sf.info(str(file_path))
+        sr           = info.samplerate
+        total_frames = info.frames
 
         alsa_dev = _find_xr18_alsa_device()
-        logger.info(f"USB playback → {alsa_dev}  sr={sr}  frames={len(data)}")
+        logger.info(f"USB playback → {alsa_dev}  sr={sr}  frames={total_frames}  start={start_frame}")
 
-        # XR18 requires S32_LE (24-bit audio in 32-bit container, 18 ch, 48 kHz)
-        n_out   = 18
-        scale   = 2147483647  # 2^31 - 1
-        out_i32 = np.zeros((len(data), n_out), dtype='int32')
-        out_i32[:, 16] = np.clip(data[:, 0] * scale, -2147483648, scale).astype(np.int32)
-        out_i32[:, 17] = np.clip(data[:, 1] * scale, -2147483648, scale).astype(np.int32)
-
-        raw_bytes       = out_i32.tobytes()
-        bytes_per_frame = n_out * 4          # 18 ch × 4 bytes
-        chunk_frames    = 512                # ~10 ms — keeps stop latency short
-        chunk_bytes     = chunk_frames * bytes_per_frame
-
-        _playback_total = len(data)
+        # Expose total/sr immediately so the status endpoint shows correct duration
+        _playback_total = total_frames
         _playback_sr    = sr
+
+        start_frame = max(0, min(start_frame, total_frames))
+        _playback_position = start_frame
+
+        # XR18 requires S24_3LE (packed 24-bit LE, 18 ch, 48 kHz).
+        # Process in 4096-frame chunks — ~85 ms per chunk at 48 kHz.
+        # Peak memory per chunk ≈ 300 KB instead of ~1.2 GB for the whole file.
+        n_out        = 18
+        scale        = 8388607  # 2^23 - 1  (24-bit signed max)
+        chunk_frames = 4096
 
         proc = subprocess.Popen(
             ['/usr/bin/aplay', '-D', alsa_dev,
-             '-c', str(n_out), '-r', str(sr), '-f', 'S32_LE', '-q', '-'],
-            stdin=subprocess.PIPE
+             '-c', str(n_out), '-r', str(sr), '-f', 'S24_3LE', '-q', '-'],
+            stdin=subprocess.PIPE,
         )
         _playback_process = proc
 
-        pos_bytes = 0
+        pos = start_frame
         try:
-            while pos_bytes < len(raw_bytes) and not _playback_stop.is_set():
-                proc.stdin.write(raw_bytes[pos_bytes:pos_bytes + chunk_bytes])
-                pos_bytes += chunk_bytes
-                _playback_position = pos_bytes // bytes_per_frame
+            for block in sf.blocks(str(file_path), blocksize=chunk_frames,
+                                   start=start_frame, dtype='float32',
+                                   always_2d=True, fill_value=0.0):
+                if _playback_stop.is_set():
+                    break
+                # Map stereo → 18-ch S24_3LE
+                out = np.zeros((len(block), n_out), dtype='int32')
+                out[:, 16] = np.clip(block[:, 0] * scale, -8388608, scale).astype(np.int32)
+                out[:, 17] = np.clip(block[:, 1] * scale, -8388608, scale).astype(np.int32)
+                u8 = np.frombuffer(out.tobytes(), dtype=np.uint8).reshape(-1, 4)
+                proc.stdin.write(np.ascontiguousarray(u8[:, :3]).tobytes())
+                pos += len(block)
+                _playback_position = pos
         except BrokenPipeError:
             pass
         finally:
@@ -1344,7 +1359,7 @@ def _play_via_usb(file_path: Path) -> None:
 @api.route('/sessions/<path:session_name>/playback/start', methods=['POST'])
 def start_playback(session_name):
     """Play bounce/stereo_mix.wav through XR18 USB 17/18 (Aux L/R)."""
-    global _playback_thread
+    global _playback_thread, _playback_process
 
     # Refuse to play while a recording is in progress
     if audio_engine and audio_engine.is_recording:
@@ -1361,8 +1376,15 @@ def start_playback(session_name):
             return jsonify({'success': False,
                             'message': f'Bounce not ready: {e}'}), 400
 
-    # Stop any current playback then start fresh
+    # Stop any current playback then start fresh.
+    # Kill the aplay subprocess explicitly so the ALSA device is released
+    # before the new thread opens it again.
     _playback_stop.set()
+    if _playback_process is not None and _playback_process.poll() is None:
+        try:
+            _playback_process.kill()
+        except Exception:
+            pass
     if _playback_thread and _playback_thread.is_alive():
         _playback_thread.join(timeout=2)
 
@@ -1388,6 +1410,52 @@ def stop_playback():
         except Exception:
             pass
     return jsonify({'success': True, 'message': 'Playback stopped'})
+
+
+@api.route('/sessions/<path:session_name>/playback/seek', methods=['POST'])
+def seek_playback(session_name):
+    """Seek active USB playback to a fractional position (0.0 – 1.0).
+
+    Body JSON: {"fraction": 0.0–1.0}
+    Stops the current playback thread and restarts it from the target frame
+    so the XR18 output jumps to the requested position immediately.
+    """
+    global _playback_thread, _playback_process
+
+    body     = request.get_json(silent=True) or {}
+    fraction = max(0.0, min(1.0, float(body.get('fraction', 0.0))))
+
+    recording_path = (storage_manager.storage_path / session_name).resolve()
+    bounce_path    = recording_path / 'bounce' / 'stereo_mix.wav'
+
+    if not bounce_path.exists():
+        return jsonify({'success': False, 'message': 'Bounce not found'}), 404
+
+    target_frame = int(_playback_total * fraction) if _playback_total > 0 else 0
+    sr           = _playback_sr or 48000
+
+    # Stop current playback and restart from the new position.
+    # Kill the aplay subprocess first so the ALSA device is released
+    # before the new thread tries to open it again.
+    _playback_stop.set()
+    if _playback_process is not None and _playback_process.poll() is None:
+        try:
+            _playback_process.kill()
+        except Exception:
+            pass
+    if _playback_thread and _playback_thread.is_alive():
+        _playback_thread.join(timeout=2)
+    _playback_stop.clear()
+
+    _playback_thread = threading.Thread(
+        target=_play_via_usb, args=(bounce_path, target_frame), daemon=True)
+    _playback_thread.start()
+
+    return jsonify({
+        'success':      True,
+        'position_sec': round(target_frame / sr, 2),
+        'fraction':     fraction,
+    })
 
 
 @api.route('/playback/status', methods=['GET'])

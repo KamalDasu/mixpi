@@ -2278,19 +2278,87 @@ body:not(.mobile-view) .ch-name {
     border: 1px solid rgba(93, 222, 101, 0.18);
     border-radius: 4px;
 }
+.mixer-tl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+.mixer-tl-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.mixer-tl-btn:hover       { background: rgba(255,255,255,0.1); }
+.mixer-tl-stop-btn        { color: #ff7b7b; border-color: rgba(255,123,123,0.35); }
+.mixer-tl-stop-btn:hover  { background: rgba(255,123,123,0.15); }
 .mixer-tl-bar {
-    height: 4px;
+    flex: 1;
+    position: relative;
+    height: 8px;
     background: rgba(255,255,255,0.07);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-bottom: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+.mixer-tl-bar:hover {
+    background: rgba(255,255,255,0.12);
 }
 .mixer-tl-fill {
     height: 100%;
     background: #5dde65;
-    border-radius: 2px;
-    transition: width 0.8s linear;
+    border-radius: 4px;
+    transition: width 0.4s linear;
+    pointer-events: none;
 }
+.mixer-tl-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border: 2px solid #5dde65;
+    border-radius: 50%;
+    pointer-events: none;
+    transition: left 0.4s linear;
+    box-shadow: 0 0 4px rgba(93,222,101,0.5);
+}
+.mixer-tl-bar:active .mixer-tl-thumb,
+.mixer-tl-bar:hover  .mixer-tl-thumb {
+    transform: translate(-50%, -50%) scale(1.25);
+    transition: left 0.4s linear, transform 0.1s;
+}
+.mixer-tl-tooltip {
+    position: absolute;
+    bottom: calc(100% + 7px);
+    transform: translateX(-50%);
+    background: rgba(15,15,15,0.92);
+    color: #5dde65;
+    font-size: 0.68rem;
+    font-family: monospace;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid rgba(93,222,101,0.35);
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.mixer-tl-tooltip.visible { opacity: 1; }
 .mixer-tl-info {
     display: flex;
     align-items: center;
