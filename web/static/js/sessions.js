@@ -397,9 +397,13 @@ class SessionsManager {
     // ----------------------------------------------------------------
 
     async handleMixerPlay(relPath) {
-        // If this session's bar is already showing (playing or paused) ignore the click —
-        // the bar's own pause/stop buttons handle everything.
-        if (this._mixerRelPath === relPath) return;
+        const btn = document.getElementById(`mixer-btn-${this._safeId(relPath)}`);
+
+        // Mixer button acts as Stop when this session's bar is already up.
+        if (this._mixerRelPath === relPath) {
+            await this._fullStopMixer();
+            return;
+        }
 
         // A different session was active — tear it down first.
         if (this._mixerRelPath) {
@@ -419,6 +423,7 @@ class SessionsManager {
             return;
         }
 
+        if (btn) { btn.innerHTML = '&#9632; Stop'; btn.classList.add('mixer-active'); }
         this._startMixerTimeline(relPath);
     }
 
@@ -443,7 +448,6 @@ class SessionsManager {
                         <div class="mixer-tl-thumb"   id="mixer-tl-thumb-${safeId}" style="left:0%"></div>
                         <div class="mixer-tl-tooltip" id="mixer-tl-tip-${safeId}">0:00</div>
                     </div>
-                    <button class="mixer-tl-btn mixer-tl-stop-btn" id="mixer-tl-stop-${safeId}" title="Stop">⏹</button>
                 </div>
                 <div class="mixer-tl-info">
                     <span class="mixer-tl-pos"   id="mixer-tl-pos-${safeId}">0:00</span>
@@ -460,11 +464,9 @@ class SessionsManager {
                 card.appendChild(tl);
             }
 
-            // Pause / Stop buttons
+            // Pause / resume button
             document.getElementById(`mixer-tl-pp-${safeId}`)
                 ?.addEventListener('click', () => this._toggleMixerPause(relPath, safeId));
-            document.getElementById(`mixer-tl-stop-${safeId}`)
-                ?.addEventListener('click', () => this._fullStopMixer());
 
             // Wire up seek interaction on the bar
             this._attachSeekHandlers(relPath, safeId);
@@ -638,7 +640,7 @@ class SessionsManager {
 
         // Reset the mixer button
         const btn = document.getElementById(`mixer-btn-${safeId}`);
-        if (btn) { btn.innerHTML = '&#9654; Mixer'; btn.disabled = false; }
+        if (btn) { btn.innerHTML = '&#9654; Mixer'; btn.disabled = false; btn.classList.remove('mixer-active'); }
 
         this._mixerRelPath = null;
     }

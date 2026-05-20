@@ -2267,8 +2267,10 @@ body:not(.mobile-view) .ch-name {
     font-family: inherit;
     transition: background 0.15s;
 }
-.btn-mixer-play:hover    { background: rgba(93,222,101,0.12); }
-.btn-mixer-play:disabled { opacity: 0.4; cursor: default; }
+.btn-mixer-play:hover          { background: rgba(93,222,101,0.12); }
+.btn-mixer-play:disabled       { opacity: 0.4; cursor: default; }
+.btn-mixer-play.mixer-active   { color: #ff7b7b; border-color: #ff7b7b; }
+.btn-mixer-play.mixer-active:hover { background: rgba(255,123,123,0.12); }
 
 /* ── Mixer playback timeline ────────────────────────────────────────────── */
 .mixer-timeline {
@@ -2301,9 +2303,7 @@ body:not(.mobile-view) .ch-name {
     justify-content: center;
     transition: background 0.15s;
 }
-.mixer-tl-btn:hover       { background: rgba(255,255,255,0.1); }
-.mixer-tl-stop-btn        { color: #ff7b7b; border-color: rgba(255,123,123,0.35); }
-.mixer-tl-stop-btn:hover  { background: rgba(255,123,123,0.15); }
+.mixer-tl-btn:hover { background: rgba(255,255,255,0.1); }
 .mixer-tl-bar {
     flex: 1;
     position: relative;
